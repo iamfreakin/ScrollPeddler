@@ -1,0 +1,31 @@
+# Unreal generated output
+/Binaries/
+/DerivedDataCache/
+/Intermediate/
+/Saved/
+/Build/*/FileOpenOrder/
+
+# Generated output inside project plugins
+/Plugins/**/Binaries/
+/Plugins/**/Intermediate/
+
+# IDE and local user state
+/.idea/
+/.vs/
+*.DotSettings.user
+*.sln
+*.slnx
+*.suo
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.opendb
+
+# Per-user Unreal content
+/Content/Developers/
+/Content/Collections/
+
+# Local OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
