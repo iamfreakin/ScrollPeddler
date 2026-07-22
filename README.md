@@ -41,6 +41,8 @@
 
 RiderLink는 로컬 Engine에 설치합니다. IDE 인덱스, 솔루션, `Binaries`, `Intermediate`, `Saved` 등 생성 파일은 저장소에 올리지 않습니다.
 
+Blender MCP는 모델링 자동화 파일럿에 사용하는 선택적 개발 도구이며 게임 빌드에는 필요하지 않습니다. 고정 버전, 로컬 연결과 텔레메트리 차단 절차는 [Blender MCP 개발 환경](Docs/BLENDER_MCP_SETUP.md)을 참고하세요.
+
 ## 시작하기
 
 ```powershell
