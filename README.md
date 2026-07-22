@@ -43,6 +43,8 @@ RiderLink는 로컬 Engine에 설치합니다. IDE 인덱스, 솔루션, `Binari
 
 Blender MCP는 모델링 자동화 파일럿에 사용하는 선택적 개발 도구이며 게임 빌드에는 필요하지 않습니다. 고정 버전, 로컬 연결과 텔레메트리 차단 절차는 [Blender MCP 개발 환경](Docs/BLENDER_MCP_SETUP.md)을 참고하세요.
 
+팀 공유 Blender 원본, 결정적 FBX 게시, Unreal 반입과 런타임 표현 연결 규칙은 [Blender → Unreal 정적 메시 파이프라인](Docs/ART_PIPELINE.md)을 따릅니다.
+
 ## 시작하기
 
 ```powershell
@@ -105,9 +107,10 @@ $Report = (Join-Path (Get-Location) 'Saved\AutomationReports\TechSpike')
   "-ReportExportPath=$Report"
 ```
 
-2026-07-11 기준으로 다음을 검증했습니다.
+2026-07-23 기준으로 다음을 검증했습니다.
 
-- Scroll Peddler 자동화 테스트 5개 통과
+- Blender 5.2.0 export부터 Unreal legacy FBX import 및 strict `ValidateOnly`까지 통과
+- Scroll Peddler 자동화 테스트 6개 통과
 - Development Editor 및 Development Game 빌드 통과
 - Win64 패키징 통과
 - 패키지 호스트·클라이언트 2프로세스 smoke 통과
@@ -123,6 +126,7 @@ Config/                 Unreal 프로젝트 설정
 Content/                맵과 Data Asset — Git LFS 대상
 Docs/                   기술 검증 및 운영 문서
 Scripts/                재현 가능한 에디터 콘텐츠 생성 스크립트
+SourceAssets/           Blender 원본과 게시 FBX — Git LFS 대상
 Source/ScrollPeddler/    Runtime C++ 모듈
   Core/                 공통 타입과 결과 무결성
   Data/                 스크롤·각인 Primary Data Asset 정의

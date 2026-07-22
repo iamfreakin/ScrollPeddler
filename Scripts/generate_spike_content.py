@@ -1,5 +1,8 @@
 """Create the reproducible binary content used by the first technical spike."""
 
+import json
+from pathlib import Path
+
 import unreal
 
 
@@ -7,6 +10,79 @@ SCROLL_PATH = "/Game/Data/Scrolls/DA_Scroll_VeilOfSilence"
 AMPLIFIED_PATH = "/Game/Data/Engravings/DA_Engraving_Amplified"
 STABLE_PATH = "/Game/Data/Engravings/DA_Engraving_Stable"
 MAP_PATH = "/Game/Maps/TechSpike"
+ASSET_MANIFEST = "Scripts/AssetPipeline/assets/scroll_pickup.json"
+
+
+def load_scroll_pickup_binding():
+    project_root = Path(
+        unreal.Paths.convert_relative_path_to_full(unreal.Paths.project_dir())
+    ).resolve()
+    manifest_path = (project_root / ASSET_MANIFEST).resolve()
+    try:
+        manifest_path.relative_to(project_root)
+    except ValueError as exc:
+        raise RuntimeError(
+            f"Asset manifest escaped the project root: {manifest_path}"
+        ) from exc
+
+    try:
+        with manifest_path.open("r", encoding="utf-8") as handle:
+            manifest = json.load(handle)
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(
+            f"Failed to read scroll pickup manifest {manifest_path}: {exc}"
+        ) from exc
+
+    if manifest.get("schemaVersion") != 1:
+        raise RuntimeError("Only asset manifest schemaVersion 1 is supported")
+    unreal_config = manifest.get("unreal")
+    paths = manifest.get("paths")
+    if not isinstance(unreal_config, dict) or not isinstance(paths, dict):
+        raise RuntimeError("Asset manifest requires unreal and paths objects")
+
+    destination = unreal_config.get("destination")
+    fbx = paths.get("fbx")
+    data_asset = unreal_config.get("dataAsset")
+    if not all(isinstance(value, str) and value for value in (destination, fbx, data_asset)):
+        raise RuntimeError(
+            "Asset manifest requires unreal.destination, unreal.dataAsset, and paths.fbx"
+        )
+    if (
+        not destination.startswith("/Game/")
+        or "." in destination
+        or ".." in destination
+    ):
+        raise RuntimeError(
+            f"Asset manifest has a non-canonical Unreal destination: {destination}"
+        )
+    if data_asset != SCROLL_PATH:
+        raise RuntimeError(
+            f"Asset manifest dataAsset {data_asset} does not match generated scroll {SCROLL_PATH}"
+        )
+
+    asset_name = Path(fbx).stem
+    if not asset_name.startswith("SM_") or not asset_name.replace("_", "").isalnum():
+        raise RuntimeError(
+            f"Asset manifest has an invalid static mesh name: {asset_name}"
+        )
+    pickup_mesh_path = (
+        destination
+        if destination.rsplit("/", 1)[-1] == asset_name
+        else f"{destination.rstrip('/')}/{asset_name}"
+    )
+    pickup_mesh = unreal.EditorAssetLibrary.load_asset(pickup_mesh_path)
+    if not isinstance(pickup_mesh, unreal.StaticMesh):
+        message = (
+            f"SP_ASSET_PIPELINE_ORDER missing={pickup_mesh_path} "
+            "required_order='1) Scripts/AssetPipeline/build_asset.ps1 "
+            "2) Scripts/generate_spike_content.py'"
+        )
+        unreal.log_error(message)
+        raise RuntimeError(
+            f"Required scroll pickup StaticMesh is missing: {pickup_mesh_path}. "
+            "Run the manifest-driven asset build before regenerating spike content."
+        )
+    return pickup_mesh
 
 
 def get_or_create_data_asset(asset_path, asset_class):
@@ -38,6 +114,8 @@ def save_asset(asset):
 
 
 def configure_assets():
+    pickup_mesh = load_scroll_pickup_binding()
+
     amplified = get_or_create_data_asset(
         AMPLIFIED_PATH, unreal.SPScrollEngravingDefinition
     )
@@ -80,6 +158,7 @@ def configure_assets():
     scroll.set_editor_property("base_radius", 500.0)
     scroll.set_editor_property("delivery_value", 100)
     scroll.set_editor_property("allowed_engravings", [amplified, stable])
+    scroll.set_editor_property("pickup_mesh", pickup_mesh)
 
     save_asset(amplified)
     save_asset(stable)
@@ -102,6 +181,10 @@ def configure_map():
 
 
 def main():
+    unreal.log(
+        "SP_ASSET_PIPELINE_ORDER required_order='1) build_asset.ps1 "
+        "2) generate_spike_content.py'"
+    )
     configure_assets()
     configure_map()
     unreal.log(

@@ -1,0 +1,128 @@
+{
+  "assetId": "scroll_pickup_blockout",
+  "blender": {
+    "unitScale": 1.0,
+    "unitSystem": "METRIC",
+    "version": "5.2.0 LTS"
+  },
+  "bounds": {
+    "dimensionsCm": [
+      48.80000054836273,
+      16.520000249147415,
+      17.90166199207306
+    ],
+    "expectedDimensionsCm": [
+      48.8,
+      16.52,
+      17.9
+    ],
+    "maximumCm": [
+      24.400000274181366,
+      7.000000029802322,
+      7.000000774860382
+    ],
+    "minimumCm": [
+      -24.400000274181366,
+      -9.520000219345093,
+      -10.901661217212677
+    ],
+    "toleranceCm": 1.0
+  },
+  "exportSettings": {
+    "animation": false,
+    "applyModifiers": true,
+    "applyScaleOptions": "FBX_SCALE_NONE",
+    "applyUnitScale": true,
+    "axisForward": "-Y",
+    "axisUp": "Z",
+    "customProperties": false,
+    "globalScale": 1.0,
+    "objectTypes": [
+      "MESH",
+      "EMPTY"
+    ],
+    "selectionOnly": true,
+    "textures": false,
+    "triangles": true
+  },
+  "generatedAtUtc": "2026-07-22T19:11:04.965838Z",
+  "hashes": {
+    "exporterSha256": "51157f2077f93c21c8ac29d0b1e9cc7f7e493e83e0dac5dd1782e14052aecd18",
+    "fbxSha256": "4a55749d569897b48cd62e967ebfd49b780766f6614363753e3150997aa523df",
+    "manifestSha256": "5750fd52a746e1e58b1576b9363b26719b424d66431c02befcccc95f69cd3854",
+    "sourceBlendSha256": "213a28eef33f27bcc87a606c19cb79e89135af8e133fa2853c2a1032f2fab0f1"
+  },
+  "materials": {
+    "Binding": [
+      "SP_MAT_Band_Blockout",
+      "SP_MAT_Ribbon_Blockout"
+    ],
+    "Paper": [
+      "SP_MAT_ParchmentEdge_Blockout",
+      "SP_MAT_Parchment_Blockout"
+    ],
+    "Rune": [
+      "SP_MAT_Glow_Blockout"
+    ],
+    "Seal": [
+      "SP_MAT_Seal_Blockout"
+    ]
+  },
+  "objects": {
+    "collision": {
+      "closedManifold": true,
+      "convex": true,
+      "name": "UCX_SM_ScrollPickup_Blockout_00",
+      "source": "SP_InteractionBounds_PREVIEW",
+      "triangles": 224,
+      "vertices": 114,
+      "volumeCubicMeters": 0.01074764085845607
+    },
+    "render": {
+      "materialPolygonCounts": {
+        "Binding": 688,
+        "Paper": 1656,
+        "Rune": 480,
+        "Seal": 556
+      },
+      "name": "SM_ScrollPickup_Blockout",
+      "sourceObjects": [
+        "SP_Binding_Core",
+        "SP_Binding_Rail_L",
+        "SP_Binding_Rail_R",
+        "SP_EndCollar_L",
+        "SP_EndCollar_R",
+        "SP_EndRollCore_L",
+        "SP_EndRollCore_R",
+        "SP_EndRollMid_L",
+        "SP_EndRollMid_R",
+        "SP_EndRollOuter_L",
+        "SP_EndRollOuter_R",
+        "SP_GlowBand_L",
+        "SP_GlowBand_R",
+        "SP_Parchment_L",
+        "SP_Parchment_R",
+        "SP_RibbonTail_L",
+        "SP_RibbonTail_R",
+        "SP_Seal_Inset",
+        "SP_Seal_Outer",
+        "SP_Seal_RuneGlyph",
+        "SP_Seal_RuneRing"
+      ],
+      "triangles": 3380,
+      "vertices": 1732
+    },
+    "root": "SP_ScrollPickup_ROOT",
+    "socket": {
+      "name": "SOCKET_SM_ScrollPickup_Blockout_00",
+      "source": "SP_PickupPivot"
+    }
+  },
+  "paths": {
+    "fbx": "SourceAssets/Props/Scrolls/ScrollPickup/Exports/SM_ScrollPickup_Blockout.fbx",
+    "manifest": "Scripts/AssetPipeline/assets/scroll_pickup.json",
+    "report": "SourceAssets/Props/Scrolls/ScrollPickup/Exports/SM_ScrollPickup_Blockout.export.json",
+    "sourceBlend": "SourceAssets/Props/Scrolls/ScrollPickup/ScrollPickup_Blockout.blend"
+  },
+  "schemaVersion": 1
+}

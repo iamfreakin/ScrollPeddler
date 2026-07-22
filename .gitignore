@@ -12,6 +12,8 @@
 # IDE and local user state
 /.idea/
 /.vs/
+**/__pycache__/
+*.py[cod]
 *.DotSettings.user
 *.sln
 *.slnx

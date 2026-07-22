@@ -2,11 +2,15 @@
 
 #include "Misc/AutomationTest.h"
 
+#include "Components/BoxComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Core/SPTypes.h"
 #include "Data/SPScrollDefinition.h"
 #include "Data/SPScrollEngravingDefinition.h"
 #include "Engine/AssetManager.h"
+#include "Engine/StaticMesh.h"
 #include "Persistence/SPSaveGame.h"
+#include "World/SPScrollPickup.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FSPScrollAxesRemainIndependentTest,
@@ -72,6 +76,45 @@ bool FSPScrollDataAssetCompositionTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("The spike family exposes exactly two engravings"), Scroll->AllowedEngravings.Num(), 2);
 	TestTrue(TEXT("Amplified is allowed"), Scroll->AllowsEngraving(Amplified));
 	TestTrue(TEXT("Stable is allowed"), Scroll->AllowsEngraving(Stable));
+	TestFalse(TEXT("The family defines pickup presentation art"), Scroll->PickupMesh.IsNull());
+	TestNotNull(TEXT("The pickup presentation mesh is loadable"), Scroll->PickupMesh.LoadSynchronous());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FSPScrollPickupComponentContractTest,
+	"ScrollPeddler.World.ScrollPickupComponentContract",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FSPScrollPickupComponentContractTest::RunTest(const FString& Parameters)
+{
+	const ASPScrollPickup* PickupCDO = GetDefault<ASPScrollPickup>();
+	const UBoxComponent* InteractionBounds = Cast<UBoxComponent>(PickupCDO->GetRootComponent());
+	const UStaticMeshComponent* PickupVisual = PickupCDO->FindComponentByClass<UStaticMeshComponent>();
+
+	TestNotNull(TEXT("Interaction bounds are the pickup root"), InteractionBounds);
+	TestNotNull(TEXT("Pickup visual is a separate static mesh component"), PickupVisual);
+	if (!InteractionBounds || !PickupVisual)
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("Interaction bounds use query-only collision"),
+		InteractionBounds->GetCollisionEnabled(), ECollisionEnabled::QueryOnly);
+	TestEqual(TEXT("Interaction bounds are world-dynamic"),
+		InteractionBounds->GetCollisionObjectType(), ECC_WorldDynamic);
+	TestEqual(TEXT("Visibility traces hit the interaction bounds"),
+		InteractionBounds->GetCollisionResponseToChannel(ECC_Visibility), ECR_Block);
+	TestEqual(TEXT("Pawn collision preserves the overlap policy"),
+		InteractionBounds->GetCollisionResponseToChannel(ECC_Pawn), ECR_Overlap);
+	TestFalse(TEXT("Interaction bounds do not generate overlap events"),
+		InteractionBounds->GetGenerateOverlapEvents());
+	TestTrue(TEXT("Interaction bounds match the scroll pickup envelope"),
+		InteractionBounds->GetUnscaledBoxExtent().Equals(FVector(26.0f, 10.0f, 10.0f)));
+	TestEqual(TEXT("Pickup art never participates in collision"),
+		PickupVisual->GetCollisionEnabled(), ECollisionEnabled::NoCollision);
+	TestTrue(TEXT("Pickup art is attached below the interaction bounds"),
+		PickupVisual->GetAttachParent() == InteractionBounds);
 	return true;
 }
 

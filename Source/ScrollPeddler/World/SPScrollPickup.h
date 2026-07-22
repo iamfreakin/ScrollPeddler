@@ -6,7 +6,10 @@
 #include "SPScrollPickup.generated.h"
 
 class ASPCharacter;
+class UBoxComponent;
+class UStaticMesh;
 class UStaticMeshComponent;
+struct FStreamableHandle;
 
 UCLASS()
 class SCROLLPEDDLER_API ASPScrollPickup : public AActor
@@ -29,20 +32,43 @@ public:
 	void ReleaseReservation(ASPCharacter* Claimant);
 	bool CommitClaim(ASPCharacter* Claimant);
 
+protected:
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
 private:
+	UFUNCTION()
+	void OnRep_ScrollInstance();
+
 	UFUNCTION()
 	void OnRep_Claimed();
 
+	void RequestPickupVisual();
+	void HandlePickupVisualLoaded(
+		TSharedPtr<FStreamableHandle> CompletedHandle,
+		uint32 RequestId,
+		FGuid RequestedInstanceId,
+		FPrimaryAssetId RequestedDefinitionId);
+	void CancelPickupVisualLoad();
+	void ApplyFallbackVisual();
+	void LogVisualFallback(const TCHAR* Reason, const FPrimaryAssetId& DefinitionId) const;
 	void ApplyClaimedPresentation();
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Pickup", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UStaticMeshComponent> PickupMesh;
+	TObjectPtr<UBoxComponent> InteractionBounds;
 
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Replicated, Category = "Pickup", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Pickup", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UStaticMeshComponent> PickupVisual;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMesh> FallbackVisualMesh;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, ReplicatedUsing = OnRep_ScrollInstance, Category = "Pickup", meta = (AllowPrivateAccess = "true"))
 	FSPScrollInstance ScrollInstance;
 
 	UPROPERTY(VisibleInstanceOnly, ReplicatedUsing = OnRep_Claimed)
 	bool bClaimed = false;
 
 	TWeakObjectPtr<ASPCharacter> ReservedBy;
+	TSharedPtr<FStreamableHandle> PickupVisualLoadHandle;
+	uint32 PickupVisualRequestId = 0;
 };

@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "assetId": "scroll_pickup_blockout",
+  "pipeline": {
+    "blenderVersion": "5.2.0",
+    "unitSystem": "METRIC",
+    "unitScale": 1.0
+  },
+  "paths": {
+    "sourceBlend": "SourceAssets/Props/Scrolls/ScrollPickup/ScrollPickup_Blockout.blend",
+    "fbx": "SourceAssets/Props/Scrolls/ScrollPickup/Exports/SM_ScrollPickup_Blockout.fbx",
+    "report": "SourceAssets/Props/Scrolls/ScrollPickup/Exports/SM_ScrollPickup_Blockout.export.json"
+  },
+  "objects": {
+    "root": "SP_ScrollPickup_ROOT",
+    "render": "SM_ScrollPickup_Blockout",
+    "collision": {
+      "source": "SP_InteractionBounds_PREVIEW",
+      "export": "UCX_SM_ScrollPickup_Blockout_00"
+    },
+    "socket": {
+      "source": "SP_PickupPivot",
+      "export": "SOCKET_SM_ScrollPickup_Blockout_00"
+    }
+  },
+  "materials": {
+    "Paper": [
+      "Parchment",
+      "Edge"
+    ],
+    "Binding": [
+      "Band",
+      "Ribbon"
+    ],
+    "Seal": [
+      "Seal"
+    ],
+    "Rune": [
+      "Glow"
+    ]
+  },
+  "bounds": {
+    "expectedDimensionsCm": [
+      48.8,
+      16.52,
+      17.9
+    ],
+    "toleranceCm": 1.0
+  },
+  "unreal": {
+    "destination": "/Game/Art/Props/Scrolls/Blockouts",
+    "dataAsset": "/Game/Data/Scrolls/DA_Scroll_VeilOfSilence",
+    "import": {
+      "materials": false,
+      "textures": false,
+      "autoCollision": false,
+      "nanite": false
+    }
+  }
+}
