@@ -13,10 +13,12 @@
 #include "Engine/AssetManager.h"
 #include "Engine/StaticMesh.h"
 #include "Game/SPGameMode.h"
+#include "Game/SPPlayerState.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Persistence/SPSaveGame.h"
 #include "Player/SPCharacter.h"
+#include "Player/SPInventoryComponent.h"
 #include "UI/SPHUD.h"
 #include "World/SPScrollPickup.h"
 
@@ -179,6 +181,301 @@ bool FSPFirstPersonPresentationContractTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FSPInteractionRequestLedgerTest,
+	"ScrollPeddler.Network.InteractionRequestLedger",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FSPInteractionRequestLedgerTest::RunTest(const FString& Parameters)
+{
+	using EAction = ASPCharacter::EInteractionRequestAction;
+	using EDisposition = ASPCharacter::EInteractionRequestDisposition;
+	using FRecord = ASPCharacter::FInteractionRequestRecord;
+
+	const FGuid TargetA = FGuid::NewGuid();
+	const FGuid TargetB = FGuid::NewGuid();
+	TMap<uint32, FRecord> Ledger;
+
+	TestEqual(TEXT("A nonzero unknown id is a new request"),
+		ASPCharacter::ClassifyInteractionRequest(Ledger, 1, EAction::Pickup, TargetA),
+		EDisposition::NewRequest);
+	TestEqual(TEXT("Zero is always invalid"),
+		ASPCharacter::ClassifyInteractionRequest(Ledger, 0, EAction::Pickup, TargetA),
+		EDisposition::InvalidRequestId);
+
+	TestTrue(TEXT("The first result is recorded"),
+		ASPCharacter::TryRecordInteractionRequestInLedger(
+			Ledger,
+			1,
+			EAction::Pickup,
+			TargetA,
+			static_cast<uint8>(ESPPickupResultCode::OutOfRange)));
+	TestEqual(TEXT("An identical action and target replays"),
+		ASPCharacter::ClassifyInteractionRequest(Ledger, 1, EAction::Pickup, TargetA),
+		EDisposition::ExactReplay);
+	TestEqual(TEXT("The replay retains the first result"),
+		Ledger.FindChecked(1).ResultCode,
+		static_cast<uint8>(ESPPickupResultCode::OutOfRange));
+	TestEqual(TEXT("A different target conflicts"),
+		ASPCharacter::ClassifyInteractionRequest(Ledger, 1, EAction::Pickup, TargetB),
+		EDisposition::Conflict);
+	TestEqual(TEXT("A different action conflicts"),
+		ASPCharacter::ClassifyInteractionRequest(Ledger, 1, EAction::UseScroll, TargetA),
+		EDisposition::Conflict);
+	TestFalse(TEXT("A replay cannot overwrite its first result"),
+		ASPCharacter::TryRecordInteractionRequestInLedger(
+			Ledger,
+			1,
+			EAction::Pickup,
+			TargetA,
+			static_cast<uint8>(ESPPickupResultCode::Success)));
+	TestEqual(TEXT("The original result remains unchanged"),
+		Ledger.FindChecked(1).ResultCode,
+		static_cast<uint8>(ESPPickupResultCode::OutOfRange));
+
+	TMap<uint32, FRecord> FullLedger;
+	bool bFilledLedger = true;
+	for (uint32 RequestId = 1;
+		RequestId <= static_cast<uint32>(ASPCharacter::MaxInteractionRequestLedgerEntries);
+		++RequestId)
+	{
+		bFilledLedger &= ASPCharacter::TryRecordInteractionRequestInLedger(
+			FullLedger,
+			RequestId,
+			EAction::Pickup,
+			TargetA,
+			static_cast<uint8>(ESPPickupResultCode::Success));
+	}
+	TestTrue(TEXT("Exactly 1024 results fit in the ledger"), bFilledLedger);
+	TestEqual(TEXT("The ledger reaches its fixed session limit"),
+		FullLedger.Num(), ASPCharacter::MaxInteractionRequestLedgerEntries);
+	TestEqual(TEXT("A new id is rejected after the limit"),
+		ASPCharacter::ClassifyInteractionRequest(
+			FullLedger,
+			ASPCharacter::MaxInteractionRequestLedgerEntries + 1,
+			EAction::Pickup,
+			TargetA),
+		EDisposition::LedgerFull);
+	TestEqual(TEXT("An exact replay still resolves when the ledger is full"),
+		ASPCharacter::ClassifyInteractionRequest(FullLedger, 1, EAction::Pickup, TargetA),
+		EDisposition::ExactReplay);
+	TestEqual(TEXT("A conflicting replay still resolves when the ledger is full"),
+		ASPCharacter::ClassifyInteractionRequest(FullLedger, 1, EAction::Pickup, TargetB),
+		EDisposition::Conflict);
+	TestFalse(TEXT("The full ledger does not mutate"),
+		ASPCharacter::TryRecordInteractionRequestInLedger(
+			FullLedger,
+			ASPCharacter::MaxInteractionRequestLedgerEntries + 1,
+			EAction::Pickup,
+			TargetA,
+			static_cast<uint8>(ESPPickupResultCode::Success)));
+	TestEqual(TEXT("Rejected ids do not increase the ledger"),
+		FullLedger.Num(), ASPCharacter::MaxInteractionRequestLedgerEntries);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FSPInteractionRequestIdTest,
+	"ScrollPeddler.Network.InteractionRequestIdIsSharedAndNonZero",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FSPInteractionRequestIdTest::RunTest(const FString& Parameters)
+{
+	uint32 NextRequestId = 1;
+	TestEqual(TEXT("The first interaction receives id 1"),
+		ASPCharacter::AllocateInteractionRequestIdFromCounter(NextRequestId), 1u);
+	TestEqual(TEXT("The next interaction shares the same sequence"),
+		ASPCharacter::AllocateInteractionRequestIdFromCounter(NextRequestId), 2u);
+
+	NextRequestId = MAX_uint32;
+	TestEqual(TEXT("The maximum id remains usable"),
+		ASPCharacter::AllocateInteractionRequestIdFromCounter(NextRequestId), MAX_uint32);
+	TestEqual(TEXT("The counter skips zero after wrapping"),
+		ASPCharacter::AllocateInteractionRequestIdFromCounter(NextRequestId), 1u);
+
+	NextRequestId = 0;
+	TestEqual(TEXT("A corrupted zero counter is repaired"),
+		ASPCharacter::AllocateInteractionRequestIdFromCounter(NextRequestId), 1u);
+	TestEqual(TEXT("The repaired sequence continues normally"), NextRequestId, 2u);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FSPPickupDistanceBoundaryTest,
+	"ScrollPeddler.Network.PickupDistanceBoundary",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FSPPickupDistanceBoundaryTest::RunTest(const FString& Parameters)
+{
+	const FVector Origin = FVector::ZeroVector;
+	TestTrue(TEXT("A pickup at exactly 350 cm is in range"),
+		ASPCharacter::IsPickupWithinRange(Origin, FVector(350.0f, 0.0f, 0.0f)));
+	TestTrue(TEXT("A pickup just inside 350 cm is in range"),
+		ASPCharacter::IsPickupWithinRange(Origin, FVector(349.99f, 0.0f, 0.0f)));
+	TestFalse(TEXT("A pickup just beyond 350 cm is out of range"),
+		ASPCharacter::IsPickupWithinRange(Origin, FVector(350.01f, 0.0f, 0.0f)));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FSPInventoryCapacityBoundaryTest,
+	"ScrollPeddler.Inventory.CapacityBoundary",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FSPInventoryCapacityBoundaryTest::RunTest(const FString& Parameters)
+{
+	TestTrue(TEXT("A fourth item can enter a four-slot inventory"),
+		USPInventoryComponent::HasCapacityForCount(3, 4));
+	TestFalse(TEXT("A fifth item cannot enter a four-slot inventory"),
+		USPInventoryComponent::HasCapacityForCount(4, 4));
+	TestFalse(TEXT("An already overfilled inventory remains closed"),
+		USPInventoryComponent::HasCapacityForCount(5, 4));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FSPPlayerStatePickupRollbackTest,
+	"ScrollPeddler.PlayerState.PickupRollbackAndDuplicateSafety",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FSPPlayerStatePickupRollbackTest::RunTest(const FString& Parameters)
+{
+	AddExpectedErrorPlain(
+		TEXT("SP_SPIKE_PICKUP_RECORD_REJECTED duplicate=1"),
+		EAutomationExpectedErrorFlags::Contains,
+		1);
+	AddExpectedErrorPlain(
+		TEXT("SP_SPIKE_PICKUP_RECORD_ROLLBACK_REJECTED"),
+		EAutomationExpectedErrorFlags::Contains,
+		1);
+	AddExpectedErrorPlain(
+		TEXT("SP_SPIKE_PICKUP_RECORD_ROLLED_BACK"),
+		EAutomationExpectedErrorFlags::Contains,
+		1);
+
+	const USPScrollDefinition* Scroll = LoadObject<USPScrollDefinition>(
+		nullptr,
+		TEXT("/Game/Data/Scrolls/DA_Scroll_VeilOfSilence.DA_Scroll_VeilOfSilence"));
+	TestNotNull(TEXT("The accounting fixture definition loads"), Scroll);
+	if (!Scroll)
+	{
+		return false;
+	}
+
+	FSPScrollInstance Item;
+	Item.InstanceId = FGuid::NewGuid();
+	Item.BaseDefinitionId = Scroll->GetPrimaryAssetId();
+	Item.EngravingDefinitionId = FPrimaryAssetId(
+		USPScrollEngravingDefinition::PrimaryAssetType,
+		TEXT("DA_Engraving_Stable"));
+
+	ASPPlayerState* PlayerState = NewObject<ASPPlayerState>();
+	TestNotNull(TEXT("A transient PlayerState can host authority accounting"), PlayerState);
+	TestTrue(TEXT("The transient PlayerState uses the authority role"), PlayerState->HasAuthority());
+	if (!PlayerState || !PlayerState->HasAuthority())
+	{
+		return false;
+	}
+
+	TestTrue(TEXT("The first pickup is recorded"), PlayerState->RecordScrollPickedUp(Item));
+	TestEqual(TEXT("Pickup count increments once"), PlayerState->GetPickedUpCount(), 1);
+	TestEqual(TEXT("Carried value matches the definition"),
+		PlayerState->GetCarriedDeliveryValue(), FMath::Max(0, Scroll->DeliveryValue));
+
+	TestFalse(TEXT("A duplicate pickup is rejected"), PlayerState->RecordScrollPickedUp(Item));
+	TestEqual(TEXT("Duplicate pickup does not increment the count"), PlayerState->GetPickedUpCount(), 1);
+	TestEqual(TEXT("Duplicate pickup does not add delivery value"),
+		PlayerState->GetCarriedDeliveryValue(), FMath::Max(0, Scroll->DeliveryValue));
+
+	TestTrue(TEXT("The authoritative pickup record rolls back"), PlayerState->RollbackScrollPickedUp(Item));
+	TestEqual(TEXT("Rollback restores the pickup count"), PlayerState->GetPickedUpCount(), 0);
+	TestEqual(TEXT("Rollback restores carried value"), PlayerState->GetCarriedDeliveryValue(), 0);
+	TestFalse(TEXT("A repeated rollback is rejected"), PlayerState->RollbackScrollPickedUp(Item));
+	TestEqual(TEXT("Repeated rollback leaves accounting unchanged"), PlayerState->GetPickedUpCount(), 0);
+
+	TestTrue(TEXT("The same stable id can be recorded after rollback"),
+		PlayerState->RecordScrollPickedUp(Item));
+	TestEqual(TEXT("Re-recording after rollback applies exactly once"), PlayerState->GetPickedUpCount(), 1);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FSPPlayerStateConsumeInactiveTest,
+	"ScrollPeddler.PlayerState.ConsumeDuplicateAndInactiveSafety",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FSPPlayerStateConsumeInactiveTest::RunTest(const FString& Parameters)
+{
+	AddExpectedErrorPlain(
+		TEXT("SP_SPIKE_CONSUME_RECORD_REJECTED duplicate=1"),
+		EAutomationExpectedErrorFlags::Contains,
+		1);
+	AddExpectedErrorPlain(
+		TEXT("SP_SPIKE_PICKUP_RECORD_REJECTED authority=1 extracted=1 valid=1"),
+		EAutomationExpectedErrorFlags::Contains,
+		1);
+	AddExpectedErrorPlain(
+		TEXT("SP_SPIKE_CONSUME_RECORD_REJECTED authority=1 extracted=1 valid=1"),
+		EAutomationExpectedErrorFlags::Contains,
+		1);
+
+	const USPScrollDefinition* Scroll = LoadObject<USPScrollDefinition>(
+		nullptr,
+		TEXT("/Game/Data/Scrolls/DA_Scroll_VeilOfSilence.DA_Scroll_VeilOfSilence"));
+	TestNotNull(TEXT("The consume fixture definition loads"), Scroll);
+	if (!Scroll)
+	{
+		return false;
+	}
+
+	FSPScrollInstance Item;
+	Item.InstanceId = FGuid::NewGuid();
+	Item.BaseDefinitionId = Scroll->GetPrimaryAssetId();
+	Item.EngravingDefinitionId = FPrimaryAssetId(
+		USPScrollEngravingDefinition::PrimaryAssetType,
+		TEXT("DA_Engraving_Stable"));
+
+	ASPPlayerState* PlayerState = NewObject<ASPPlayerState>();
+	TestNotNull(TEXT("A transient PlayerState can host consume accounting"), PlayerState);
+	TestTrue(TEXT("The consume fixture uses the authority role"), PlayerState->HasAuthority());
+	if (!PlayerState || !PlayerState->HasAuthority())
+	{
+		return false;
+	}
+
+	const int32 DeliveryValue = FMath::Max(0, Scroll->DeliveryValue);
+	TestTrue(TEXT("The consume fixture pickup is recorded"), PlayerState->RecordScrollPickedUp(Item));
+	TestTrue(TEXT("The first consume is recorded"),
+		PlayerState->RecordScrollConsumed(Item, DeliveryValue));
+	TestEqual(TEXT("Consume count increments once"), PlayerState->GetConsumedScrollCount(), 1);
+	TestEqual(TEXT("Consume removes carried delivery value"), PlayerState->GetCarriedDeliveryValue(), 0);
+
+	TestFalse(TEXT("A duplicate consume is rejected"),
+		PlayerState->RecordScrollConsumed(Item, DeliveryValue));
+	TestEqual(TEXT("Duplicate consume does not increment the count"),
+		PlayerState->GetConsumedScrollCount(), 1);
+	TestEqual(TEXT("Duplicate consume does not subtract value twice"),
+		PlayerState->GetCarriedDeliveryValue(), 0);
+
+	PlayerState->MarkExtracted();
+	TestTrue(TEXT("Extraction makes the player inactive"), PlayerState->IsExtracted());
+	TestEqual(TEXT("Consumed inventory produces no extracted scrolls"),
+		PlayerState->GetExtractedScrollCount(), 0);
+	TestEqual(TEXT("Consumed inventory produces no extraction gold"), PlayerState->GetGoldDelta(), 0);
+
+	FSPScrollInstance LateItem = Item;
+	LateItem.InstanceId = FGuid::NewGuid();
+	TestFalse(TEXT("An inactive player cannot record another pickup"),
+		PlayerState->RecordScrollPickedUp(LateItem));
+	TestFalse(TEXT("An inactive player cannot record another consume"),
+		PlayerState->RecordScrollConsumed(Item, DeliveryValue));
+	TestEqual(TEXT("Inactive requests leave pickup accounting unchanged"),
+		PlayerState->GetPickedUpCount(), 1);
+	TestEqual(TEXT("Inactive requests leave consume accounting unchanged"),
+		PlayerState->GetConsumedScrollCount(), 1);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FSPPickupHUDContractTest,
 	"ScrollPeddler.UI.PickupFeedbackContract",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -192,6 +489,7 @@ bool FSPPickupHUDContractTest::RunTest(const FString& Parameters)
 	{
 		ESPPickupResultCode::Success,
 		ESPPickupResultCode::InvalidRequest,
+		ESPPickupResultCode::InactivePlayer,
 		ESPPickupResultCode::OutOfRange,
 		ESPPickupResultCode::InventoryFull,
 		ESPPickupResultCode::Unavailable,
@@ -219,6 +517,31 @@ bool FSPPickupHUDContractTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Rejections use a distinct red result color"),
 		ASPHUD::GetPickupResultColor(ESPPickupResultCode::ServerError).R >
 		ASPHUD::GetPickupResultColor(ESPPickupResultCode::ServerError).G);
+
+	const ESPScrollUseResultCode UseResultCodes[] =
+	{
+		ESPScrollUseResultCode::Success,
+		ESPScrollUseResultCode::InvalidRequest,
+		ESPScrollUseResultCode::InactivePlayer,
+		ESPScrollUseResultCode::NotOwned,
+		ESPScrollUseResultCode::InvalidDefinition,
+		ESPScrollUseResultCode::ServerError
+	};
+	for (const ESPScrollUseResultCode ResultCode : UseResultCodes)
+	{
+		TestFalse(
+			*FString::Printf(TEXT("Scroll-use result %s has visible HUD copy"),
+				*StaticEnum<ESPScrollUseResultCode>()->GetNameStringByValue(static_cast<int64>(ResultCode))),
+			ASPHUD::GetScrollUseResultMessage(ResultCode).IsEmpty());
+	}
+	TestEqual(TEXT("Scroll-use success copy is stable"),
+		ASPHUD::GetScrollUseResultMessage(ESPScrollUseResultCode::Success), FString(TEXT("SCROLL USED")));
+	TestTrue(TEXT("Scroll-use success uses the green result color"),
+		ASPHUD::GetScrollUseResultColor(ESPScrollUseResultCode::Success).G >
+		ASPHUD::GetScrollUseResultColor(ESPScrollUseResultCode::Success).R);
+	TestTrue(TEXT("Scroll-use rejection uses the red result color"),
+		ASPHUD::GetScrollUseResultColor(ESPScrollUseResultCode::NotOwned).R >
+		ASPHUD::GetScrollUseResultColor(ESPScrollUseResultCode::NotOwned).G);
 	return true;
 }
 
