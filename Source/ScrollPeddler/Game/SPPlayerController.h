@@ -48,4 +48,6 @@ private:
 	FTimerHandle AutoQuitTimerHandle;
 	EAutoSpikeStep AutoSpikeStep = EAutoSpikeStep::WaitingForPawn;
 	double AutoStepStartedAtSeconds = 0.0;
+	double AutoContestedBarrierStartedAtSeconds = 0.0;
+	bool bAutoContestedAttemptMade = false;
 };

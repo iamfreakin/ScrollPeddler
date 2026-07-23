@@ -49,6 +49,8 @@ void ASPPlayerController::StartAutoSpikeIfRequested()
 
 	AutoSpikeStep = EAutoSpikeStep::WaitingForPawn;
 	AutoStepStartedAtSeconds = GetWorld()->GetTimeSeconds();
+	AutoContestedBarrierStartedAtSeconds = 0.0;
+	bAutoContestedAttemptMade = false;
 	GetWorldTimerManager().SetTimer(
 		AutoSpikeTimerHandle,
 		this,
@@ -93,28 +95,73 @@ void ASPPlayerController::RunAutoSpikeStep()
 		{
 			ASPScrollPickup* NearestPickup = nullptr;
 			float NearestDistanceSquared = TNumericLimits<float>::Max();
+			FString LowestInstanceKey;
+			const bool bForceFirstContestedAttempt =
+				!bAutoContestedAttemptMade &&
+				FParse::Param(FCommandLine::Get(), TEXT("SPAutoContestedPickup"));
+			if (bForceFirstContestedAttempt)
+			{
+				const ASPGameState* ScrollGameState = World->GetGameState<ASPGameState>();
+				const ESPSessionPhase SessionPhase = ScrollGameState
+					? ScrollGameState->GetSessionPhase()
+					: ESPSessionPhase::LobbyCreated;
+				const bool bRosterReady = ScrollGameState &&
+					(SessionPhase == ESPSessionPhase::InExpedition ||
+						SessionPhase == ESPSessionPhase::Extraction) &&
+					ScrollGameState->PlayerArray.Num() >= ScrollGameState->GetExpectedPlayers();
+				if (!bRosterReady)
+				{
+					AutoContestedBarrierStartedAtSeconds = 0.0;
+					break;
+				}
+
+				if (AutoContestedBarrierStartedAtSeconds <= 0.0)
+				{
+					AutoContestedBarrierStartedAtSeconds = Now;
+					UE_LOG(LogScrollPeddler, Display,
+						TEXT("SP_SPIKE_AUTO_CONTESTED_BARRIER controller=%s players=%d expected=%d"),
+						*GetNameSafe(this), ScrollGameState->PlayerArray.Num(),
+						ScrollGameState->GetExpectedPlayers());
+					break;
+				}
+
+				if (Now - AutoContestedBarrierStartedAtSeconds < 1.0)
+				{
+					break;
+				}
+			}
 			for (TActorIterator<ASPScrollPickup> Iterator(World); Iterator; ++Iterator)
 			{
 				ASPScrollPickup* Candidate = *Iterator;
-				if (!IsValid(Candidate) || !Candidate->IsAvailable())
+				if (!IsValid(Candidate) || !Candidate->GetScrollInstance().IsValid() ||
+					(!bForceFirstContestedAttempt && !Candidate->IsAvailable()))
 				{
 					continue;
 				}
 
 				const float DistanceSquared = FVector::DistSquared(
 					ScrollCharacter->GetActorLocation(), Candidate->GetActorLocation());
-				if (DistanceSquared < NearestDistanceSquared)
+				const FString InstanceKey = Candidate->GetScrollInstance().InstanceId.ToString(
+					EGuidFormats::Digits);
+				const bool bPreferCandidate = bForceFirstContestedAttempt
+					? (NearestPickup == nullptr || InstanceKey < LowestInstanceKey)
+					: DistanceSquared < NearestDistanceSquared;
+				if (bPreferCandidate)
 				{
 					NearestDistanceSquared = DistanceSquared;
 					NearestPickup = Candidate;
+					LowestInstanceKey = InstanceKey;
 				}
 			}
 
 			if (NearestPickup)
 			{
+				bAutoContestedAttemptMade = true;
+				AutoContestedBarrierStartedAtSeconds = 0.0;
 				UE_LOG(LogScrollPeddler, Display,
-					TEXT("SP_SPIKE_AUTO_PICKUP_REQUEST controller=%s pickup=%s distance=%.1f"),
-					*GetNameSafe(this), *GetNameSafe(NearestPickup), FMath::Sqrt(NearestDistanceSquared));
+					TEXT("SP_SPIKE_AUTO_PICKUP_REQUEST controller=%s pickup=%s distance=%.1f contested_first=%d"),
+					*GetNameSafe(this), *GetNameSafe(NearestPickup), FMath::Sqrt(NearestDistanceSquared),
+					bForceFirstContestedAttempt ? 1 : 0);
 				ScrollCharacter->RequestPickup(NearestPickup);
 				TransitionTo(EAutoSpikeStep::WaitingForInventory);
 			}

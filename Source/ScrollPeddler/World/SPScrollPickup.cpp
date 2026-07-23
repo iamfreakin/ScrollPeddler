@@ -6,6 +6,8 @@
 #include "Engine/AssetManager.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/StreamableManager.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #include "Net/UnrealNetwork.h"
 #include "Player/SPCharacter.h"
 #include "ScrollPeddler.h"
@@ -119,7 +121,17 @@ bool ASPScrollPickup::CommitClaim(ASPCharacter* Claimant)
 	CancelPickupVisualLoad();
 	ApplyClaimedPresentation();
 	ForceNetUpdate();
-	SetLifeSpan(0.10f);
+	// Keep the claimed actor addressable long enough for the second packaged
+	// smoke client to exercise the authoritative rejection path. Normal play
+	// keeps the original short cleanup window.
+	float ClaimedLifeSpan = 0.10f;
+#if !UE_BUILD_SHIPPING
+	if (FParse::Param(FCommandLine::Get(), TEXT("SPAutoContestedPickup")))
+	{
+		ClaimedLifeSpan = 5.0f;
+	}
+#endif
+	SetLifeSpan(ClaimedLifeSpan);
 	return true;
 }
 

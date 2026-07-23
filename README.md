@@ -90,6 +90,8 @@ SPJoin 127.0.0.1
 - `E`: 조준한 스크롤 줍기 요청
 - `Q`: 인벤토리 첫 스크롤 사용 요청
 
+1인칭 화면 중앙의 크로스헤어는 평소 흰색이며, 유효한 스크롤을 조준하면 청록색과 `[E] PICK UP` 안내로 바뀝니다. 요청 중에는 노란색, 서버 수락은 녹색, 거부는 붉은색 결과로 표시됩니다.
+
 반대편 원통형 마커에 도달하면 서버 권위 탈출·정산·로컬 저장 흐름이 시작됩니다.
 
 ## 검증
@@ -110,7 +112,7 @@ $Report = (Join-Path (Get-Location) 'Saved\AutomationReports\TechSpike')
 2026-07-23 기준으로 다음을 검증했습니다.
 
 - Blender 5.2.0 export부터 Unreal legacy FBX import 및 strict `ValidateOnly`까지 통과
-- Scroll Peddler 자동화 테스트 6개 통과
+- Scroll Peddler 자동화 테스트 8개 통과
 - Development Editor 및 Development Game 빌드 통과
 - Win64 패키징 통과
 - 패키지 호스트·클라이언트 2프로세스 smoke 통과
