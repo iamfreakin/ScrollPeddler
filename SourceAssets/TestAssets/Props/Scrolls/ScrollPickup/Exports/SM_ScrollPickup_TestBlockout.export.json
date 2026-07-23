@@ -1,5 +1,5 @@
 {
-  "assetId": "scroll_pickup_blockout",
+  "assetId": "scroll_pickup_test_blockout",
   "blender": {
     "unitScale": 1.0,
     "unitSystem": "METRIC",
@@ -45,12 +45,12 @@
     "textures": false,
     "triangles": true
   },
-  "generatedAtUtc": "2026-07-22T19:11:04.965838Z",
+  "generatedAtUtc": "2026-07-23T00:39:56.916573Z",
   "hashes": {
     "exporterSha256": "51157f2077f93c21c8ac29d0b1e9cc7f7e493e83e0dac5dd1782e14052aecd18",
-    "fbxSha256": "4a55749d569897b48cd62e967ebfd49b780766f6614363753e3150997aa523df",
-    "manifestSha256": "5750fd52a746e1e58b1576b9363b26719b424d66431c02befcccc95f69cd3854",
-    "sourceBlendSha256": "213a28eef33f27bcc87a606c19cb79e89135af8e133fa2853c2a1032f2fab0f1"
+    "fbxSha256": "1c1a894269afc5ac83d388427a90d2df9f54ddffe797f02aeb9ad34899d9b7de",
+    "manifestSha256": "3f69bc000d22d54fdf2d4179b02bf2453e0bb9a2af3b6b3bbd26af9599415368",
+    "sourceBlendSha256": "743eeaa21403b356ddb697f0d48e02a8c89afdfaef92b7ba0f373377cb494a01"
   },
   "materials": {
     "Binding": [
@@ -72,8 +72,8 @@
     "collision": {
       "closedManifold": true,
       "convex": true,
-      "name": "UCX_SM_ScrollPickup_Blockout_00",
-      "source": "SP_InteractionBounds_PREVIEW",
+      "name": "UCX_SM_ScrollPickup_TestBlockout_00",
+      "source": "SP_TestInteractionBounds_PREVIEW",
       "triangles": 224,
       "vertices": 114,
       "volumeCubicMeters": 0.01074764085845607
@@ -85,7 +85,7 @@
         "Rune": 480,
         "Seal": 556
       },
-      "name": "SM_ScrollPickup_Blockout",
+      "name": "SM_ScrollPickup_TestBlockout",
       "sourceObjects": [
         "SP_Binding_Core",
         "SP_Binding_Rail_L",
@@ -112,17 +112,17 @@
       "triangles": 3380,
       "vertices": 1732
     },
-    "root": "SP_ScrollPickup_ROOT",
+    "root": "SP_ScrollPickup_TestBlockout_ROOT",
     "socket": {
-      "name": "SOCKET_SM_ScrollPickup_Blockout_00",
-      "source": "SP_PickupPivot"
+      "name": "SOCKET_SM_ScrollPickup_TestBlockout_00",
+      "source": "SP_TestPickupPivot"
     }
   },
   "paths": {
-    "fbx": "SourceAssets/Props/Scrolls/ScrollPickup/Exports/SM_ScrollPickup_Blockout.fbx",
-    "manifest": "Scripts/AssetPipeline/assets/scroll_pickup.json",
-    "report": "SourceAssets/Props/Scrolls/ScrollPickup/Exports/SM_ScrollPickup_Blockout.export.json",
-    "sourceBlend": "SourceAssets/Props/Scrolls/ScrollPickup/ScrollPickup_Blockout.blend"
+    "fbx": "SourceAssets/TestAssets/Props/Scrolls/ScrollPickup/Exports/SM_ScrollPickup_TestBlockout.fbx",
+    "manifest": "Scripts/AssetPipeline/assets/scroll_pickup_test_blockout.json",
+    "report": "SourceAssets/TestAssets/Props/Scrolls/ScrollPickup/Exports/SM_ScrollPickup_TestBlockout.export.json",
+    "sourceBlend": "SourceAssets/TestAssets/Props/Scrolls/ScrollPickup/ScrollPickup_TestBlockout.blend"
   },
   "schemaVersion": 1
 }

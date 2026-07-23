@@ -3,7 +3,7 @@
 [CmdletBinding()]
 param(
     [Parameter()]
-    [string]$Manifest = 'Scripts/AssetPipeline/assets/scroll_pickup.json',
+    [string]$Manifest = 'Scripts/AssetPipeline/assets/scroll_pickup_test_blockout.json',
 
     [Parameter()]
     [string]$BlenderExecutable,

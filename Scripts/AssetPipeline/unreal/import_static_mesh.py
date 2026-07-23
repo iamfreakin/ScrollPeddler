@@ -22,7 +22,7 @@ import unreal
 
 
 LOG_PREFIX = "SP_ASSET_PIPELINE"
-DEFAULT_MANIFEST = "Scripts/AssetPipeline/assets/scroll_pickup.json"
+DEFAULT_MANIFEST = "Scripts/AssetPipeline/assets/scroll_pickup_test_blockout.json"
 BLENDER_EXPORTER = "Scripts/AssetPipeline/blender/export_static_mesh.py"
 
 
@@ -591,6 +591,19 @@ def _nanite_enabled(mesh: unreal.StaticMesh) -> bool:
         _fail(f"Could not inspect StaticMesh Nanite settings: {exc}")
 
 
+def _socket_names(mesh: unreal.StaticMesh) -> list[str]:
+    try:
+        # StaticMesh.Sockets is protected in UE 5.8's Python reflection. Imported
+        # FBX sockets have the default empty tag, which this public API exposes.
+        sockets = list(mesh.get_sockets_by_tag(""))
+        return [
+            str(socket.get_editor_property("socket_name"))
+            for socket in sockets
+        ]
+    except Exception as exc:
+        _fail(f"Could not inspect StaticMesh sockets: {exc}")
+
+
 def _validate_mesh(
     mesh: unreal.StaticMesh,
     destination: str,
@@ -641,18 +654,14 @@ def _validate_mesh(
         )
     collision_count = sum(collision_counts.values())
 
-    try:
-        socket = mesh.find_socket(required_socket_name)
-    except Exception as exc:
-        _fail(f"Could not inspect StaticMesh socket {required_socket_name}: {exc}")
-    if socket is None:
-        _fail(f"StaticMesh is missing required socket: {required_socket_name}")
-    actual_socket_name = str(socket.get_editor_property("socket_name"))
-    if actual_socket_name != required_socket_name:
+    socket_names = _socket_names(mesh)
+    expected_socket_names = [required_socket_name]
+    if socket_names != expected_socket_names:
         _fail(
-            f"StaticMesh socket mismatch: expected {required_socket_name}, "
-            f"got {actual_socket_name}"
+            "StaticMesh socket contract mismatch; "
+            f"expected exactly {expected_socket_names}, actual {socket_names}"
         )
+    actual_socket_name = socket_names[0]
 
     if _nanite_enabled(mesh):
         _fail("StaticMesh has Nanite enabled; this blockout pipeline requires it off")

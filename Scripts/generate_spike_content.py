@@ -10,7 +10,7 @@ SCROLL_PATH = "/Game/Data/Scrolls/DA_Scroll_VeilOfSilence"
 AMPLIFIED_PATH = "/Game/Data/Engravings/DA_Engraving_Amplified"
 STABLE_PATH = "/Game/Data/Engravings/DA_Engraving_Stable"
 MAP_PATH = "/Game/Maps/TechSpike"
-ASSET_MANIFEST = "Scripts/AssetPipeline/assets/scroll_pickup.json"
+ASSET_MANIFEST = "Scripts/AssetPipeline/assets/scroll_pickup_test_blockout.json"
 
 
 def load_scroll_pickup_binding():
