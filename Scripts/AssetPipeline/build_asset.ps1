@@ -255,6 +255,7 @@ $blenderArguments = @(
     '--factory-startup',
     '--disable-autoexec',
     '--background',
+    '--python-use-system-env',
     $sourceBlend,
     '--python',
     $script:BlenderExportScript,
@@ -276,7 +277,36 @@ else {
     }
 }
 
-Invoke-CheckedNative -Executable $blender -Arguments $blenderArguments -Stage 'Blender export'
+$pythonEnvironmentNames = @(
+    'PYTHONHASHSEED',
+    'PYTHONNOUSERSITE',
+    'PYTHONHOME',
+    'PYTHONPATH'
+)
+$previousPythonEnvironment = @{}
+foreach ($name in $pythonEnvironmentNames) {
+    $previousPythonEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
+}
+try {
+    # Blender's FBX exporter derives object UUIDs through Python hash(). Pin the
+    # child-process seed so identical source data produces identical FBX bytes.
+    # --python-use-system-env is required for Blender's embedded Python to honor it,
+    # so remove host Python injection paths and keep user site-packages disabled.
+    [Environment]::SetEnvironmentVariable('PYTHONHASHSEED', '0', 'Process')
+    [Environment]::SetEnvironmentVariable('PYTHONNOUSERSITE', '1', 'Process')
+    [Environment]::SetEnvironmentVariable('PYTHONHOME', $null, 'Process')
+    [Environment]::SetEnvironmentVariable('PYTHONPATH', $null, 'Process')
+    Invoke-CheckedNative -Executable $blender -Arguments $blenderArguments -Stage 'Blender export'
+}
+finally {
+    foreach ($name in $pythonEnvironmentNames) {
+        [Environment]::SetEnvironmentVariable(
+            $name,
+            $previousPythonEnvironment[$name],
+            'Process'
+        )
+    }
+}
 
 if (-not $ValidateOnly) {
     foreach ($output in @($fbxPath, $reportPath)) {

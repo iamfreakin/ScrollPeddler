@@ -95,6 +95,13 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _sha256_text(path: Path) -> str:
+    """Hash UTF-8 text with canonical LF newlines across Git checkouts."""
+    text = path.read_text(encoding="utf-8")
+    canonical = text.replace("\r\n", "\n").replace("\r", "\n")
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 def _find_repository_root(manifest_path: Path) -> Path:
     for candidate in (manifest_path.parent, *manifest_path.parents):
         if (candidate / ".git").exists() and (candidate / "ScrollPeddler.uproject").is_file():
@@ -253,6 +260,33 @@ def _finite_matrix(matrix: Matrix) -> bool:
     return all(math.isfinite(value) for row in matrix for value in row)
 
 
+def _validate_positive_scale(obj: bpy.types.Object) -> None:
+    scale = tuple(float(value) for value in obj.scale)
+    _require(
+        all(math.isfinite(value) for value in scale),
+        f"Object has a non-finite scale: {obj.name}",
+    )
+    _require(
+        all(value > 0.0 for value in scale),
+        f"Object has a zero or negative scale: {obj.name}: {scale}",
+    )
+
+
+def _is_export_excluded(obj: bpy.types.Object, root: bpy.types.Object) -> bool:
+    current: bpy.types.Object | None = obj
+    while current is not None and current != root:
+        if "do_not_export" in current:
+            value = current["do_not_export"]
+            _require(
+                isinstance(value, bool),
+                f"do_not_export must be a boolean on {current.name}",
+            )
+            if value:
+                return True
+        current = current.parent
+    return False
+
+
 def _validate_collision_geometry(
     mesh: bpy.types.Mesh,
     source_name: str,
@@ -307,6 +341,16 @@ def _validate_collision_geometry(
         collision.free()
 
 
+def _validate_render_geometry(mesh: bpy.types.Mesh, source_name: str) -> None:
+    center = sum((vertex.co for vertex in mesh.vertices), Vector()) / len(mesh.vertices)
+    radius = max((vertex.co - center).length for vertex in mesh.vertices)
+    area_tolerance = max(radius * radius * 1.0e-16, 1.0e-20)
+    _require(
+        all(polygon.area > area_tolerance for polygon in mesh.polygons),
+        f"Render source contains a degenerate face: {source_name}",
+    )
+
+
 def _evaluated_mesh(
     source: bpy.types.Object,
     root_inverse: Matrix,
@@ -317,6 +361,10 @@ def _evaluated_mesh(
     _require(evaluated.type in SUPPORTED_SOURCE_TYPES, f"Unsupported geometry type: {source.name}: {source.type}")
     transform = root_inverse @ evaluated.matrix_world
     _require(_finite_matrix(transform), f"Non-finite transform on source object: {source.name}")
+    _require(
+        transform.determinant() > 1.0e-12,
+        f"Source transform is not positive and invertible: {source.name}",
+    )
     mesh = bpy.data.meshes.new_from_object(
         evaluated,
         preserve_all_data_layers=True,
@@ -395,7 +443,9 @@ def _validate_source(contract: dict[str, Any]) -> dict[str, Any]:
     _require(root is not None, f"Missing root object: {contract['root_name']}")
     _require(root.type == "EMPTY", f"Root object must be an Empty: {root.name} is {root.type}")
     _require(root.library is None, f"Root object must be local data: {root.name}")
-    _require(abs(root.matrix_world.determinant()) > 1.0e-12, f"Root transform is not invertible: {root.name}")
+    _require(_finite_matrix(root.matrix_world), f"Root transform is non-finite: {root.name}")
+    _validate_positive_scale(root)
+    _require(root.matrix_world.determinant() > 1.0e-12, f"Root transform is not positive and invertible: {root.name}")
     root_inverse = root.matrix_world.inverted()
 
     collision_source = scene.objects.get(contract["collision_source"])
@@ -433,21 +483,26 @@ def _validate_source(contract: dict[str, Any]) -> dict[str, Any]:
         )
 
     descendants = [obj for obj in scene.objects if _is_descendant(obj, root)]
+    export_descendants = [
+        obj for obj in descendants if not _is_export_excluded(obj, root)
+    ]
     unexpected = [
         obj.name
-        for obj in descendants
+        for obj in export_descendants
         if obj.type not in SUPPORTED_SOURCE_TYPES | {"EMPTY"}
     ]
     _require(not unexpected, f"Unsupported objects below export root: {sorted(unexpected)}")
     geometry_sources = sorted(
         (
             obj
-            for obj in descendants
+            for obj in export_descendants
             if obj.type in SUPPORTED_SOURCE_TYPES and obj != collision_source
         ),
         key=lambda obj: obj.name.casefold(),
     )
     _require(bool(geometry_sources), f"No render geometry below root: {root.name}")
+    for source in (*export_descendants, collision_source, socket_source):
+        _validate_positive_scale(source)
     for source in geometry_sources:
         _require(source.library is None, f"Render source must be local data: {source.name}")
 
@@ -463,6 +518,7 @@ def _validate_source(contract: dict[str, Any]) -> dict[str, Any]:
     for source in geometry_sources:
         mesh = _evaluated_mesh(source, root_inverse, depsgraph, f"__SP_VALIDATE__{source.name}")
         try:
+            _validate_render_geometry(mesh, source.name)
             _extend_bounds(mesh, minimum, maximum)
             vertex_count += len(mesh.vertices)
             polygon_count += len(mesh.polygons)
@@ -518,6 +574,12 @@ def _validate_source(contract: dict[str, Any]) -> dict[str, Any]:
         "root": root,
         "root_inverse": root_inverse,
         "geometry_sources": geometry_sources,
+        "excluded_source_names": sorted(
+            obj.name
+            for obj in descendants
+            if obj not in export_descendants
+            and obj not in (collision_source, socket_source)
+        ),
         "collision_source_object": collision_source,
         "socket_source_object": socket_source,
         "geometry_count": len(geometry_sources),
@@ -593,6 +655,14 @@ def _triangulate(mesh: bpy.types.Mesh) -> None:
     _require(all(len(polygon.vertices) == 3 for polygon in mesh.polygons), f"Triangulation failed: {mesh.name}")
 
 
+def _quantize_uv_layers(mesh: bpy.types.Mesh, decimal_places: int = 6) -> None:
+    """Remove sub-precision evaluated-geometry noise before FBX compression."""
+    for layer in mesh.uv_layers:
+        for loop in layer.data:
+            loop.uv[0] = round(float(loop.uv[0]), decimal_places)
+            loop.uv[1] = round(float(loop.uv[1]), decimal_places)
+
+
 def _build_temporary_export(
     contract: dict[str, Any],
     inspection: dict[str, Any],
@@ -653,6 +723,7 @@ def _build_temporary_export(
         canonical_materials,
     )
     _triangulate(render_object.data)
+    _quantize_uv_layers(render_object.data)
 
     collision_mesh = _evaluated_mesh(
         inspection["collision_source_object"],
@@ -732,6 +803,7 @@ def _export_settings() -> tuple[dict[str, Any], dict[str, Any]]:
         "animation": False,
         "textures": False,
         "customProperties": False,
+        "uvDecimalPlaces": 6,
     }
     operator = {
         "check_existing": False,
@@ -793,6 +865,31 @@ def _write_temporary_json(path: Path, value: dict[str, Any]) -> Path:
         stream.flush()
         os.fsync(stream.fileno())
     return temporary_path
+
+
+def _replace_fbx_application_native_file(root: Any, relative_source_path: str) -> None:
+    matches = 0
+    pending = [root]
+    while pending:
+        element = pending.pop()
+        pending.extend(element.elems)
+        if element.id != b"P" or not element.props:
+            continue
+        encoded_name = element.props[0]
+        if (
+            not isinstance(encoded_name, bytes)
+            or encoded_name[4:] != b"Original|ApplicationNativeFile"
+        ):
+            continue
+        _require(
+            bool(element.props_type) and element.props_type[-1] == b"S"[0],
+            "FBX ApplicationNativeFile has an unexpected property type",
+        )
+        element.props.pop()
+        element.props_type.pop()
+        element.add_string_unicode(relative_source_path)
+        matches += 1
+    _require(matches == 1, f"Expected one FBX ApplicationNativeFile property, found {matches}")
 
 
 def _publish_outputs(
@@ -874,13 +971,13 @@ def _export(
 
     def validate_inputs() -> None:
         inputs = (
-            (contract["source_blend"], source_sha256, "Source .blend"),
-            (contract["manifest_path"], manifest_sha256, "Manifest"),
-            (Path(__file__).resolve(), exporter_sha256, "Exporter script"),
+            (contract["source_blend"], source_sha256, "Source .blend", _sha256),
+            (contract["manifest_path"], manifest_sha256, "Manifest", _sha256_text),
+            (Path(__file__).resolve(), exporter_sha256, "Exporter script", _sha256_text),
         )
-        for path, expected_hash, label in inputs:
+        for path, expected_hash, label, hash_file in inputs:
             _require(
-                path.is_file() and _sha256(path) == expected_hash,
+                path.is_file() and hash_file(path) == expected_hash,
                 f"{label} changed during export; existing outputs were preserved",
             )
 
@@ -898,12 +995,40 @@ def _export(
             delete=False,
         ) as stream:
             temporary_fbx = Path(stream.name)
-        result = bpy.ops.export_scene.fbx(
-            filepath=str(temporary_fbx),
-            **export_settings_operator,
-        )
+        import io_scene_fbx.export_fbx_bin as export_fbx_bin
+
+        original_header_writer = export_fbx_bin.fbx_header_elements
+
+        def write_deterministic_header(root: Any, scene_data: Any, time: Any = None) -> None:
+            del time
+            original_header_writer(root, scene_data, datetime(1970, 1, 1))
+            _replace_fbx_application_native_file(
+                root,
+                _repo_relative(contract["source_blend"], contract["repository_root"]),
+            )
+
+        export_fbx_bin.fbx_header_elements = write_deterministic_header
+        try:
+            try:
+                result = bpy.ops.export_scene.fbx(
+                    filepath=str(temporary_fbx),
+                    **export_settings_operator,
+                )
+            except RuntimeError as exc:
+                raise PipelineError("Blender FBX export operator failed") from exc
+        finally:
+            export_fbx_bin.fbx_header_elements = original_header_writer
         _require(result == {"FINISHED"}, f"FBX exporter did not finish: {result}")
         _require(temporary_fbx.is_file() and temporary_fbx.stat().st_size > 0, "FBX exporter wrote no data")
+        fbx_bytes = temporary_fbx.read_bytes()
+        absolute_source_variants = {
+            str(contract["source_blend"]),
+            contract["source_blend"].as_posix(),
+        }
+        _require(
+            all(path.encode("utf-8") not in fbx_bytes for path in absolute_source_variants),
+            "FBX contains an absolute source .blend path",
+        )
         fbx_sha256 = _sha256(temporary_fbx)
 
         render_mesh = temporary["render"].data
@@ -927,6 +1052,7 @@ def _export(
             },
             "objects": {
                 "root": contract["root_name"],
+                "excluded": inspection["excluded_source_names"],
                 "render": {
                     "name": contract["render_name"],
                     "sourceObjects": [source.name for source in inspection["geometry_sources"]],
@@ -1004,10 +1130,10 @@ def _validation_result(contract: dict[str, Any], inspection: dict[str, Any]) -> 
 def main() -> int:
     args = _parse_args()
     manifest_path = Path(args.manifest).resolve()
-    manifest_sha256 = _sha256(manifest_path)
+    manifest_sha256 = _sha256_text(manifest_path)
     contract = _load_contract(manifest_path)
     _require(
-        _sha256(manifest_path) == manifest_sha256,
+        _sha256_text(manifest_path) == manifest_sha256,
         "Manifest changed while it was being parsed",
     )
     _validate_environment(contract)
@@ -1015,7 +1141,7 @@ def main() -> int:
     source_path: Path = contract["source_blend"]
     source_sha256 = _sha256(source_path)
     exporter_path = Path(__file__).resolve()
-    exporter_sha256 = _sha256(exporter_path)
+    exporter_sha256 = _sha256_text(exporter_path)
     inspection = _validate_source(contract)
 
     if args.validate_only:
@@ -1038,8 +1164,8 @@ def main() -> int:
 
     _require(
         _sha256(source_path) == source_sha256
-        and _sha256(manifest_path) == manifest_sha256
-        and _sha256(exporter_path) == exporter_sha256,
+        and _sha256_text(manifest_path) == manifest_sha256
+        and _sha256_text(exporter_path) == exporter_sha256,
         "Pipeline input changed during validation or export",
     )
     print("SP_ASSET_PIPELINE_RESULT=" + json.dumps(result, sort_keys=True, ensure_ascii=False))
@@ -1052,3 +1178,6 @@ if __name__ == "__main__":
     except PipelineError as exc:
         print(f"SP_ASSET_PIPELINE_ERROR={exc}", file=sys.stderr)
         raise SystemExit(2) from exc
+    except Exception as exc:
+        print(f"SP_ASSET_PIPELINE_ERROR=Unexpected exporter failure: {exc}", file=sys.stderr)
+        raise SystemExit(3) from exc

@@ -43,12 +43,13 @@
     ],
     "selectionOnly": true,
     "textures": false,
-    "triangles": true
+    "triangles": true,
+    "uvDecimalPlaces": 6
   },
-  "generatedAtUtc": "2026-07-23T00:39:56.916573Z",
+  "generatedAtUtc": "2026-07-23T03:20:26.601586Z",
   "hashes": {
-    "exporterSha256": "51157f2077f93c21c8ac29d0b1e9cc7f7e493e83e0dac5dd1782e14052aecd18",
-    "fbxSha256": "1c1a894269afc5ac83d388427a90d2df9f54ddffe797f02aeb9ad34899d9b7de",
+    "exporterSha256": "7eaa997874c793054238ed4d844e574d6df3a576c58df88bcf3f890351295d4a",
+    "fbxSha256": "7d5c2c09f9f16a95407e24c634b31031882035ad78c7fb1b89a41d655680d1b9",
     "manifestSha256": "3f69bc000d22d54fdf2d4179b02bf2453e0bb9a2af3b6b3bbd26af9599415368",
     "sourceBlendSha256": "743eeaa21403b356ddb697f0d48e02a8c89afdfaef92b7ba0f373377cb494a01"
   },
@@ -78,6 +79,7 @@
       "vertices": 114,
       "volumeCubicMeters": 0.01074764085845607
     },
+    "excluded": [],
     "render": {
       "materialPolygonCounts": {
         "Binding": 688,

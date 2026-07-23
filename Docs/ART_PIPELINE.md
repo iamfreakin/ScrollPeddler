@@ -72,7 +72,7 @@ FBX 파일명, 렌더 메시 노드명과 Unreal Static Mesh 이름을 동일하
 - 카메라, 조명, 전시 플랫폼, 픽업 링 등 presentation object는 root 바깥에 두거나 `do_not_export=true`로 표시한다.
 - 최종 삼각분할은 게시 단계에서 고정한다. baked normal map을 도입하면 tangent 정책도 manifest에 명시한다.
 
-publisher는 `--factory-startup --disable-autoexec --background`로 실행해 사용자 애드온과 Blender MCP 세션으로부터 격리한다. 고정 FBX 설정은 Selected Objects, Apply Unit, All Local scaling, `-Y Forward / Z Up`, Apply Modifiers, Triangulate, animation·texture embed·custom property 비활성이다. Blender FBX SDK 버전과 UE의 FBX 2020.2 importer 기준이 동일하지 않으므로 실제 Unreal import와 bounds 검증을 호환성 게이트로 사용한다.
+publisher는 `--factory-startup --disable-autoexec --background --python-use-system-env`로 실행해 사용자 애드온과 Blender MCP 세션으로부터 격리한다. 실행 전 `PYTHONHOME`·`PYTHONPATH`를 제거하고 user site-packages를 비활성화한 뒤 `PYTHONHASHSEED=0`으로 FBX UUID를 고정한다. FBX 헤더 시각은 1970-01-01, `ApplicationNativeFile`은 저장소 상대 경로로 정규화하며, 평가 메시의 부동소수점 흔들림은 UV 소수점 6자리 양자화로 제거한다. 고정 FBX 설정은 Selected Objects, Apply Unit, All Local scaling, `-Y Forward / Z Up`, Apply Modifiers, Triangulate, animation·texture embed·custom property 비활성이다. Blender FBX SDK 버전과 UE의 FBX 2020.2 importer 기준이 동일하지 않으므로 실제 Unreal import와 bounds 검증을 호환성 게이트로 사용한다.
 
 ## Unreal 반입 계약
 

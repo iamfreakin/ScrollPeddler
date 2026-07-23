@@ -114,6 +114,13 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _sha256_text(path: Path) -> str:
+    """Hash UTF-8 text with canonical LF newlines across Git checkouts."""
+    text = path.read_text(encoding="utf-8")
+    canonical = text.replace("\r\n", "\n").replace("\r", "\n")
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 def _nested(mapping: dict[str, Any], *keys: str) -> Any:
     current: Any = mapping
     for key in keys:
@@ -324,10 +331,10 @@ def _validate_export_report(
     if not isinstance(hashes, dict):
         _fail("Blender export report must contain a hashes object")
     expected_hashes = {
-        "manifestSha256": _sha256(manifest_path),
+        "manifestSha256": _sha256_text(manifest_path),
         "sourceBlendSha256": _sha256(source_blend),
         "fbxSha256": _sha256(fbx_path),
-        "exporterSha256": _sha256(exporter_path),
+        "exporterSha256": _sha256_text(exporter_path),
     }
     for field, actual in expected_hashes.items():
         if str(hashes.get(field, "")).lower() != actual.lower():
