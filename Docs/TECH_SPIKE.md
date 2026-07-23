@@ -114,7 +114,8 @@ slot. `-SPAutoContestedPickup` makes each process target the lowest stable
 pickup ID after the expected roster is present, then fall back to the nearest
 available pickup. In non-Shipping builds it also keeps the first claimed actor
 addressable for five seconds, so the second request reaches the server and the
-smoke path deterministically exercises one authoritative pickup rejection.
+smoke path deterministically exercises one authoritative `Contested` pickup
+rejection.
 
 ## Current limits
 

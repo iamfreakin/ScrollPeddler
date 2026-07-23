@@ -211,6 +211,8 @@ bool FSPPickupHUDContractTest::RunTest(const FString& Parameters)
 		ASPHUD::GetPickupResultMessage(ESPPickupResultCode::Success), FString(TEXT("PICKED UP")));
 	TestEqual(TEXT("Obstruction copy is stable"),
 		ASPHUD::GetPickupResultMessage(ESPPickupResultCode::Obstructed), FString(TEXT("BLOCKED")));
+	TestEqual(TEXT("Contested pickup copy is stable"),
+		ASPHUD::GetPickupResultMessage(ESPPickupResultCode::Contested), FString(TEXT("ALREADY CLAIMED")));
 	TestTrue(TEXT("Success uses a distinct green result color"),
 		ASPHUD::GetPickupResultColor(ESPPickupResultCode::Success).G >
 		ASPHUD::GetPickupResultColor(ESPPickupResultCode::Success).R);

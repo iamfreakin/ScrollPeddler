@@ -263,9 +263,12 @@ void ASPCharacter::ServerTryPickup_Implementation(ASPScrollPickup* Pickup, const
 		RejectPickupRequest(RequestId, ESPPickupResultCode::InventoryFull, TEXT("Capacity"), Pickup);
 		return;
 	}
-	if (!Pickup->IsAvailable())
+	// Presentation availability is useful to the local trace and automation
+	// selector, but the server must let TryReserve classify an already claimed
+	// or concurrently reserved pickup as Contested.
+	if (!Pickup->GetScrollInstance().IsValid())
 	{
-		RejectPickupRequest(RequestId, ESPPickupResultCode::Unavailable, TEXT("Unavailable"), Pickup);
+		RejectPickupRequest(RequestId, ESPPickupResultCode::Unavailable, TEXT("InvalidInstance"), Pickup);
 		return;
 	}
 	if (!HasLineOfSightToPickup(Pickup))
