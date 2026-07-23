@@ -10,7 +10,12 @@
 #include "GameFramework/GameSession.h"
 #include "GameFramework/PlayerStart.h"
 #include "Kismet/GameplayStatics.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #include "Player/SPCharacter.h"
+#if !UE_BUILD_SHIPPING
+#include "Tests/SPAdversarialTestCoordinator.h"
+#endif
 #include "UI/SPHUD.h"
 #include "UObject/ConstructorHelpers.h"
 #include "World/SPExtractionZone.h"
@@ -54,6 +59,8 @@ ASPGameMode::ASPGameMode()
 	StableEngravingDefinition = StableDefinition.Object;
 }
 
+ASPGameMode::~ASPGameMode() = default;
+
 void ASPGameMode::InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage)
 {
 	Super::InitGame(MapName, Options, ErrorMessage);
@@ -76,6 +83,14 @@ void ASPGameMode::InitGame(const FString& MapName, const FString& Options, FStri
 		*MapName, static_cast<int32>(GetNetMode()));
 
 	SpawnSpikeWorld();
+
+#if !UE_BUILD_SHIPPING
+	if (FParse::Param(FCommandLine::Get(), TEXT("SPAdversarialSuite")))
+	{
+		AdversarialTestCoordinator = MakeUnique<FSPAdversarialTestCoordinator>(*this);
+		AdversarialTestCoordinator->Start();
+	}
+#endif
 }
 
 void ASPGameMode::InitGameState()
@@ -108,9 +123,79 @@ void ASPGameMode::Logout(AController* Exiting)
 	UE_LOG(LogSPGameMode, Display,
 		TEXT("SP_SPIKE_PLAYER_LEAVE controller=%s connected_before=%d expected=%d"),
 		*GetNameSafe(Exiting), GetNumPlayers(), ExpectedPlayers);
+#if !UE_BUILD_SHIPPING
+	if (AdversarialTestCoordinator)
+	{
+		AdversarialTestCoordinator->HandleLogout(Cast<ASPPlayerController>(Exiting));
+	}
+#endif
 	Super::Logout(Exiting);
 	RefreshSessionPhase();
 }
+
+void ASPGameMode::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+#if !UE_BUILD_SHIPPING
+	AdversarialTestCoordinator.Reset();
+#endif
+	Super::EndPlay(EndPlayReason);
+}
+
+#if !UE_BUILD_SHIPPING
+void ASPGameMode::RegisterAdversarialClient(
+	ASPPlayerController* PlayerController,
+	const int32 ClientIndex,
+	const FString& RunId,
+	const int32 Seed,
+	const int32 PartySize)
+{
+	if (AdversarialTestCoordinator)
+	{
+		AdversarialTestCoordinator->RegisterClient(
+			PlayerController,
+			ClientIndex,
+			RunId,
+			Seed,
+			PartySize);
+	}
+}
+
+void ASPGameMode::ReportAdversarialActionArmed(
+	ASPPlayerController* PlayerController,
+	const FName ScenarioId,
+	const int32 ClientIndex)
+{
+	if (AdversarialTestCoordinator)
+	{
+		AdversarialTestCoordinator->ReportActionArmed(
+			PlayerController,
+			ScenarioId,
+			ClientIndex);
+	}
+}
+
+void ASPGameMode::ReportAdversarialActionResult(
+	ASPPlayerController* PlayerController,
+	const FName ScenarioId,
+	const int32 ClientIndex,
+	const uint32 RequestId,
+	const FName ResultCode,
+	const bool bDispatched,
+	const FString& ClientState)
+{
+	if (AdversarialTestCoordinator)
+	{
+		AdversarialTestCoordinator->ReportActionResult(
+			PlayerController,
+			ScenarioId,
+			ClientIndex,
+			RequestId,
+			ResultCode,
+			bDispatched,
+			ClientState);
+	}
+}
+#endif
 
 bool ASPGameMode::TryExtractCharacter(ASPCharacter* Character)
 {
@@ -197,7 +282,15 @@ void ASPGameMode::HandleSettlementAck(
 	{
 		if (ASPGameState* ScrollGameState = GetGameState<ASPGameState>())
 		{
-			ScrollGameState->AuthorityMarkSettlementCommitted();
+			if (!ScrollGameState->IsSettlementCommitted())
+			{
+				ScrollGameState->AuthorityMarkSettlementCommitted();
+				UE_LOG(LogSPGameMode, Display,
+					TEXT("SP_SPIKE_SETTLEMENT_COMMITTED session=%s acknowledged=%d expected=%d"),
+					*SessionId.ToString(EGuidFormats::DigitsWithHyphensLower),
+					SuccessfulSettlementAcks.Num(),
+					PendingSettlementHashes.Num());
+			}
 		}
 	}
 }

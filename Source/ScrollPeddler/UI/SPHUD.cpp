@@ -39,6 +39,12 @@ void ASPHUD::DrawHUD()
 			PromptColor = PendingColor;
 			Prompt = TEXT("PICKING UP...");
 		}
+		else if (Character->IsScrollUseRequestPending())
+		{
+			CrosshairColor = PendingColor;
+			PromptColor = PendingColor;
+			Prompt = TEXT("USING SCROLL...");
+		}
 		else if (Character->HasActivePickupFeedback())
 		{
 			if (Character->IsNoTargetPickupFeedback())
@@ -59,6 +65,22 @@ void ASPHUD::DrawHUD()
 				CrosshairColor = GetPickupResultColor(ResultCode);
 				PromptColor = CrosshairColor;
 				Prompt = GetPickupResultMessage(ResultCode);
+			}
+		}
+		else if (Character->HasActiveScrollUseFeedback())
+		{
+			if (Character->IsScrollUseFeedbackTimedOut())
+			{
+				CrosshairColor = RejectionColor;
+				PromptColor = RejectionColor;
+				Prompt = TEXT("NO RESPONSE");
+			}
+			else
+			{
+				const ESPScrollUseResultCode ResultCode = Character->GetLastScrollUseResult();
+				CrosshairColor = GetScrollUseResultColor(ResultCode);
+				PromptColor = CrosshairColor;
+				Prompt = GetScrollUseResultMessage(ResultCode);
 			}
 		}
 		else if (Character->FindPickupInView())
@@ -84,6 +106,8 @@ FString ASPHUD::GetPickupResultMessage(const ESPPickupResultCode ResultCode)
 		return TEXT("PICKED UP");
 	case ESPPickupResultCode::InvalidRequest:
 		return TEXT("INVALID REQUEST");
+	case ESPPickupResultCode::InactivePlayer:
+		return TEXT("PLAYER INACTIVE");
 	case ESPPickupResultCode::OutOfRange:
 		return TEXT("TOO FAR");
 	case ESPPickupResultCode::InventoryFull:
@@ -103,6 +127,31 @@ FString ASPHUD::GetPickupResultMessage(const ESPPickupResultCode ResultCode)
 FLinearColor ASPHUD::GetPickupResultColor(const ESPPickupResultCode ResultCode)
 {
 	return ResultCode == ESPPickupResultCode::Success ? SuccessColor : RejectionColor;
+}
+
+FString ASPHUD::GetScrollUseResultMessage(const ESPScrollUseResultCode ResultCode)
+{
+	switch (ResultCode)
+	{
+	case ESPScrollUseResultCode::Success:
+		return TEXT("SCROLL USED");
+	case ESPScrollUseResultCode::InvalidRequest:
+		return TEXT("INVALID REQUEST");
+	case ESPScrollUseResultCode::InactivePlayer:
+		return TEXT("PLAYER INACTIVE");
+	case ESPScrollUseResultCode::NotOwned:
+		return TEXT("SCROLL NOT OWNED");
+	case ESPScrollUseResultCode::InvalidDefinition:
+		return TEXT("INVALID SCROLL");
+	case ESPScrollUseResultCode::ServerError:
+	default:
+		return TEXT("SERVER ERROR");
+	}
+}
+
+FLinearColor ASPHUD::GetScrollUseResultColor(const ESPScrollUseResultCode ResultCode)
+{
+	return ResultCode == ESPScrollUseResultCode::Success ? SuccessColor : RejectionColor;
 }
 
 void ASPHUD::DrawCrosshair(const FVector2D& Center, const FLinearColor& Color) const

@@ -22,7 +22,7 @@ public:
 	int32 GetCapacity() const { return Capacity; }
 
 	UFUNCTION(BlueprintPure, Category = "Scroll Peddler|Inventory")
-	bool HasCapacity() const { return Items.Num() < Capacity; }
+	bool HasCapacity() const { return HasCapacityForCount(Items.Num(), Capacity); }
 
 	UFUNCTION(BlueprintPure, Category = "Scroll Peddler|Inventory")
 	FGuid GetFirstInstanceId() const;
@@ -30,13 +30,18 @@ public:
 	const TArray<FSPScrollInstance>& GetItems() const { return Items; }
 	const FSPScrollInstance* FindItemByInstanceId(const FGuid& InstanceId) const;
 
-	/** Server-only mutation. Returns false for invalid, duplicate, or over-capacity items. */
+	/** 서버 전용 변경이며 invalid·duplicate·over-capacity 항목은 false를 반환한다. */
 	bool TryAddItem(const FSPScrollInstance& Item);
 
-	/** Server-only mutation. OutRemovedItem is assigned only when one item is committed. */
+	/** 서버 전용 변경이며 실제 제거가 확정됐을 때만 OutRemovedItem을 채운다. */
 	bool RemoveItemByInstanceId(const FGuid& InstanceId, FSPScrollInstance& OutRemovedItem);
 
 private:
+	static bool HasCapacityForCount(int32 ItemCount, int32 CapacityLimit)
+	{
+		return ItemCount < CapacityLimit;
+	}
+
 	UFUNCTION()
 	void OnRep_Items();
 
@@ -45,4 +50,6 @@ private:
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, ReplicatedUsing = OnRep_Items, Category = "Inventory", meta = (AllowPrivateAccess = "true"))
 	TArray<FSPScrollInstance> Items;
+
+	friend class FSPInventoryCapacityBoundaryTest;
 };

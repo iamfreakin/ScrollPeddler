@@ -121,6 +121,7 @@ void ASPCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	if (GetWorld())
 	{
 		GetWorldTimerManager().ClearTimer(PickupRequestTimeoutHandle);
+		GetWorldTimerManager().ClearTimer(ScrollUseRequestTimeoutHandle);
 	}
 	Super::EndPlay(EndPlayReason);
 }
@@ -156,27 +157,29 @@ void ASPCharacter::RequestPickup(ASPScrollPickup* Pickup)
 		return;
 	}
 
-	// Input/automation intent must originate on the locally controlled pawn.
-	// Authority-side code must not manufacture a request for a remote pawn,
-	// because its owning client would not have the matching pending RequestId.
+	// 입력·자동화 의도는 로컬 제어 Pawn에서 시작해야 한다.
+	// 권위 코드가 remote Pawn 요청을 대신 만들면 owning client에 대응하는
+	// pending RequestId가 없으므로 허용하지 않는다.
 	if (!IsLocallyControlled())
 	{
 		return;
 	}
-	if (IsPickupRequestPending())
+	if (IsPickupRequestPending() || IsScrollUseRequestPending())
 	{
 		UE_LOG(LogScrollPeddler, Verbose,
-			TEXT("[SP_PICKUP_REQUEST_SKIPPED] Player=%s PendingRequestId=%u"),
-			*GetNameSafe(this), PendingPickupRequestId);
+			TEXT("[SP_PICKUP_REQUEST_SKIPPED] Player=%s PendingPickupRequestId=%u PendingUseRequestId=%u"),
+			*GetNameSafe(this), PendingPickupRequestId, PendingScrollUseRequestId);
 		return;
 	}
 
-	const uint32 RequestId = AllocatePickupRequestId();
+	const FGuid TargetInstanceId = Pickup->GetScrollInstance().InstanceId;
+	const uint32 RequestId = AllocateInteractionRequestId();
 	BeginLocalPickupRequest(RequestId);
 	UE_LOG(LogScrollPeddler, Log,
-		TEXT("[SP_PICKUP_REQUEST] Player=%s Pickup=%s RequestId=%u"),
-		*GetNameSafe(this), *GetNameSafe(Pickup), RequestId);
-	ServerTryPickup(Pickup, RequestId);
+		TEXT("[SP_PICKUP_REQUEST] Player=%s Pickup=%s InstanceId=%s RequestId=%u"),
+		*GetNameSafe(this), *GetNameSafe(Pickup),
+		*TargetInstanceId.ToString(EGuidFormats::DigitsWithHyphensLower), RequestId);
+	ServerTryPickup(Pickup, TargetInstanceId, RequestId);
 }
 
 ASPScrollPickup* ASPCharacter::FindPickupInView() const
@@ -216,9 +219,14 @@ bool ASPCharacter::HasActivePickupFeedback() const
 	return GetWorld() && PickupFeedbackExpiresAt > GetWorld()->GetTimeSeconds();
 }
 
+bool ASPCharacter::HasActiveScrollUseFeedback() const
+{
+	return GetWorld() && ScrollUseFeedbackExpiresAt > GetWorld()->GetTimeSeconds();
+}
+
 void ASPCharacter::RequestUseFirst()
 {
-	if (!CanRequestInteraction())
+	if (!CanRequestInteraction() || IsScrollUseRequestPending() || IsPickupRequestPending())
 	{
 		return;
 	}
@@ -231,54 +239,110 @@ void ASPCharacter::RequestUseFirst()
 
 	if (HasAuthority() || IsLocallyControlled())
 	{
-		ServerUseScroll(InstanceId);
+		const uint32 RequestId = AllocateInteractionRequestId();
+		BeginLocalScrollUseRequest(RequestId);
+		UE_LOG(LogScrollPeddler, Log,
+			TEXT("[SP_SCROLL_USE_REQUEST] Player=%s InstanceId=%s RequestId=%u"),
+			*GetNameSafe(this), *InstanceId.ToString(EGuidFormats::DigitsWithHyphensLower), RequestId);
+		ServerUseScroll(InstanceId, RequestId);
 	}
 }
 
-void ASPCharacter::ServerTryPickup_Implementation(ASPScrollPickup* Pickup, const uint32 RequestId)
+#if !UE_BUILD_SHIPPING
+bool ASPCharacter::DevelopmentRequestPickup(
+	ASPScrollPickup* Pickup,
+	const FGuid& TargetInstanceId,
+	const uint32 RequestId)
 {
+	if (!FParse::Param(FCommandLine::Get(), TEXT("SPAdversarialSuite")) ||
+		(!IsLocallyControlled() && GetNetMode() != NM_Client))
+	{
+		return false;
+	}
+
+	ServerTryPickup(Pickup, TargetInstanceId, RequestId);
+	return true;
+}
+
+bool ASPCharacter::DevelopmentRequestUseScroll(const FGuid& InstanceId, const uint32 RequestId)
+{
+	if (!FParse::Param(FCommandLine::Get(), TEXT("SPAdversarialSuite")) ||
+		(!IsLocallyControlled() && GetNetMode() != NM_Client))
+	{
+		return false;
+	}
+
+	ServerUseScroll(InstanceId, RequestId);
+	return true;
+}
+#endif
+
+void ASPCharacter::ServerTryPickup_Implementation(
+	ASPScrollPickup* Pickup,
+	const FGuid TargetInstanceId,
+	const uint32 RequestId)
+{
+	if (HandleExistingInteractionRequest(
+		RequestId, EInteractionRequestAction::Pickup, TargetInstanceId))
+	{
+		return;
+	}
 	if (!HasValidOwningController())
 	{
-		RejectPickupRequest(RequestId, ESPPickupResultCode::InvalidRequest, TEXT("InvalidOwner"), Pickup);
+		RejectPickupRequest(
+			RequestId, TargetInstanceId, ESPPickupResultCode::InvalidRequest, TEXT("InvalidOwner"), Pickup);
 		return;
 	}
 	ASPPlayerState* ScrollPlayerState = GetActiveScrollPlayerState();
 	if (!ScrollPlayerState)
 	{
-		RejectPickupRequest(RequestId, ESPPickupResultCode::InvalidRequest, TEXT("InactivePlayerState"), Pickup);
+		RejectPickupRequest(
+			RequestId, TargetInstanceId, ESPPickupResultCode::InactivePlayer, TEXT("InactivePlayerState"), Pickup);
 		return;
 	}
 	if (!IsValid(Pickup) || !Pickup->HasAuthority() || Pickup->GetWorld() != GetWorld())
 	{
-		RejectPickupRequest(RequestId, ESPPickupResultCode::InvalidRequest, TEXT("InvalidPickup"), Pickup);
+		RejectPickupRequest(
+			RequestId, TargetInstanceId, ESPPickupResultCode::InvalidRequest, TEXT("InvalidPickup"), Pickup);
 		return;
 	}
-	if (FVector::DistSquared(GetActorLocation(), Pickup->GetActorLocation()) > FMath::Square(MaxPickupDistance))
+	if (!TargetInstanceId.IsValid() || Pickup->GetScrollInstance().InstanceId != TargetInstanceId)
 	{
-		RejectPickupRequest(RequestId, ESPPickupResultCode::OutOfRange, TEXT("Distance"), Pickup);
+		RejectPickupRequest(
+			RequestId, TargetInstanceId, ESPPickupResultCode::InvalidRequest, TEXT("TargetMismatch"), Pickup);
+		return;
+	}
+	if (!IsPickupWithinRange(GetActorLocation(), Pickup->GetActorLocation()))
+	{
+		RejectPickupRequest(
+			RequestId, TargetInstanceId, ESPPickupResultCode::OutOfRange, TEXT("Distance"), Pickup);
 		return;
 	}
 	if (!Inventory || !Inventory->HasCapacity())
 	{
-		RejectPickupRequest(RequestId, ESPPickupResultCode::InventoryFull, TEXT("Capacity"), Pickup);
+		RejectPickupRequest(
+			RequestId, TargetInstanceId, ESPPickupResultCode::InventoryFull, TEXT("Capacity"), Pickup);
 		return;
 	}
-	// Presentation availability is useful to the local trace and automation
-	// selector, but the server must let TryReserve classify an already claimed
-	// or concurrently reserved pickup as Contested.
+	// 표시용 availability는 로컬 trace와 자동화 대상 선택에 사용한다.
+	// 서버는 이미 claim됐거나 동시에 예약된 픽업을 TryReserve가
+	// Contested로 분류할 수 있게 여기서 먼저 차단하지 않는다.
 	if (!Pickup->GetScrollInstance().IsValid())
 	{
-		RejectPickupRequest(RequestId, ESPPickupResultCode::Unavailable, TEXT("InvalidInstance"), Pickup);
+		RejectPickupRequest(
+			RequestId, TargetInstanceId, ESPPickupResultCode::Unavailable, TEXT("InvalidInstance"), Pickup);
 		return;
 	}
 	if (!HasLineOfSightToPickup(Pickup))
 	{
-		RejectPickupRequest(RequestId, ESPPickupResultCode::Obstructed, TEXT("LineOfSight"), Pickup);
+		RejectPickupRequest(
+			RequestId, TargetInstanceId, ESPPickupResultCode::Obstructed, TEXT("LineOfSight"), Pickup);
 		return;
 	}
 	if (!Pickup->TryReserve(this))
 	{
-		RejectPickupRequest(RequestId, ESPPickupResultCode::Contested, TEXT("Reservation"), Pickup);
+		RejectPickupRequest(
+			RequestId, TargetInstanceId, ESPPickupResultCode::Contested, TEXT("Reservation"), Pickup);
 		return;
 	}
 
@@ -286,7 +350,8 @@ void ASPCharacter::ServerTryPickup_Implementation(ASPScrollPickup* Pickup, const
 	if (!Inventory->TryAddItem(Item))
 	{
 		Pickup->ReleaseReservation(this);
-		RejectPickupRequest(RequestId, ESPPickupResultCode::InventoryFull, TEXT("InventoryCommit"), Pickup);
+		RejectPickupRequest(
+			RequestId, TargetInstanceId, ESPPickupResultCode::InventoryFull, TEXT("InventoryCommit"), Pickup);
 		return;
 	}
 
@@ -298,7 +363,8 @@ void ASPCharacter::ServerTryPickup_Implementation(ASPScrollPickup* Pickup, const
 		UE_LOG(LogScrollPeddler, Error,
 			TEXT("[SP_TECH_SPIKE_PICKUP_LEDGER_ROLLBACK] Player=%s InstanceId=%s InventoryRestored=%d"),
 			*GetNameSafe(this), *Item.InstanceId.ToString(EGuidFormats::DigitsWithHyphensLower), bInventoryRolledBack ? 1 : 0);
-		RejectPickupRequest(RequestId, ESPPickupResultCode::ServerError, TEXT("LedgerCommit"), Pickup);
+		RejectPickupRequest(
+			RequestId, TargetInstanceId, ESPPickupResultCode::ServerError, TEXT("LedgerCommit"), Pickup);
 		return;
 	}
 
@@ -312,19 +378,23 @@ void ASPCharacter::ServerTryPickup_Implementation(ASPScrollPickup* Pickup, const
 			TEXT("[SP_TECH_SPIKE_PICKUP_COMMIT_ROLLBACK] Player=%s InstanceId=%s InventoryRestored=%d LedgerRestored=%d"),
 			*GetNameSafe(this), *Item.InstanceId.ToString(EGuidFormats::DigitsWithHyphensLower),
 			bInventoryRolledBack ? 1 : 0, bLedgerRolledBack ? 1 : 0);
-		RejectPickupRequest(RequestId, ESPPickupResultCode::ServerError, TEXT("PickupCommit"), Pickup);
+		RejectPickupRequest(
+			RequestId, TargetInstanceId, ESPPickupResultCode::ServerError, TEXT("PickupCommit"), Pickup);
 		return;
 	}
 
 	UE_LOG(LogScrollPeddler, Log, TEXT("[SP_TECH_SPIKE_PICKUP_COMMITTED] Player=%s Pickup=%s InstanceId=%s Count=%d"),
 		*GetNameSafe(this), *GetNameSafe(Pickup), *Item.InstanceId.ToString(EGuidFormats::DigitsWithHyphensLower), Inventory->GetItemCount());
-	ClientNotifyPickupResult(RequestId, ESPPickupResultCode::Success);
+	CompletePickupRequest(RequestId, TargetInstanceId, ESPPickupResultCode::Success);
 }
 
 void ASPCharacter::ClientNotifyPickupResult_Implementation(
 	const uint32 RequestId,
 	const ESPPickupResultCode ResultCode)
 {
+	LastCompletedPickupRequestId = RequestId;
+	LastPickupResult = ResultCode;
+	++PickupCompletionSerial;
 	if (PendingPickupRequestId != RequestId)
 	{
 		UE_LOG(LogScrollPeddler, Verbose,
@@ -343,25 +413,32 @@ void ASPCharacter::ClientNotifyPickupResult_Implementation(
 		*StaticEnum<ESPPickupResultCode>()->GetNameStringByValue(static_cast<int64>(ResultCode)));
 }
 
-void ASPCharacter::ServerUseScroll_Implementation(FGuid InstanceId)
+void ASPCharacter::ServerUseScroll_Implementation(const FGuid InstanceId, const uint32 RequestId)
 {
+	if (HandleExistingInteractionRequest(
+		RequestId, EInteractionRequestAction::UseScroll, InstanceId))
+	{
+		return;
+	}
 	if (!HasValidOwningController() || !Inventory || !InstanceId.IsValid())
 	{
-		UE_LOG(LogScrollPeddler, Warning, TEXT("[SP_TECH_SPIKE_SCROLL_REJECTED] Player=%s Reason=InvalidRequest"), *GetNameSafe(this));
+		RejectScrollUseRequest(
+			RequestId, InstanceId, ESPScrollUseResultCode::InvalidRequest, TEXT("InvalidRequest"));
 		return;
 	}
 	ASPPlayerState* ScrollPlayerState = GetActiveScrollPlayerState();
 	if (!ScrollPlayerState)
 	{
-		UE_LOG(LogScrollPeddler, Warning, TEXT("[SP_TECH_SPIKE_SCROLL_REJECTED] Player=%s Reason=InactivePlayerState"), *GetNameSafe(this));
+		RejectScrollUseRequest(
+			RequestId, InstanceId, ESPScrollUseResultCode::InactivePlayer, TEXT("InactivePlayerState"));
 		return;
 	}
 
 	const FSPScrollInstance* FoundItem = Inventory->FindItemByInstanceId(InstanceId);
 	if (!FoundItem)
 	{
-		UE_LOG(LogScrollPeddler, Warning, TEXT("[SP_TECH_SPIKE_SCROLL_REJECTED] Player=%s Reason=UnknownInstance InstanceId=%s"),
-			*GetNameSafe(this), *InstanceId.ToString(EGuidFormats::DigitsWithHyphensLower));
+		RejectScrollUseRequest(
+			RequestId, InstanceId, ESPScrollUseResultCode::NotOwned, TEXT("UnknownInstance"));
 		return;
 	}
 
@@ -372,16 +449,20 @@ void ASPCharacter::ServerUseScroll_Implementation(FGuid InstanceId)
 	if (!ScrollDefinition || !EngravingDefinition || ScrollDefinition->EffectKind != ESPScrollEffectKind::Silence ||
 		!ScrollDefinition->AllowsEngraving(EngravingDefinition))
 	{
-		UE_LOG(LogScrollPeddler, Warning, TEXT("[SP_TECH_SPIKE_SCROLL_REJECTED] Player=%s Reason=AssetValidation Base=%s Engraving=%s"),
-			*GetNameSafe(this), *ItemSnapshot.BaseDefinitionId.ToString(), *ItemSnapshot.EngravingDefinitionId.ToString());
+		UE_LOG(LogScrollPeddler, Warning,
+			TEXT("[SP_TECH_SPIKE_SCROLL_ASSET_INVALID] Player=%s Base=%s Engraving=%s"),
+			*GetNameSafe(this), *ItemSnapshot.BaseDefinitionId.ToString(),
+			*ItemSnapshot.EngravingDefinitionId.ToString());
+		RejectScrollUseRequest(
+			RequestId, InstanceId, ESPScrollUseResultCode::InvalidDefinition, TEXT("AssetValidation"));
 		return;
 	}
 
 	FSPScrollInstance ConsumedItem;
 	if (!Inventory->RemoveItemByInstanceId(InstanceId, ConsumedItem))
 	{
-		UE_LOG(LogScrollPeddler, Warning, TEXT("[SP_TECH_SPIKE_SCROLL_REJECTED] Player=%s Reason=ConsumeRace InstanceId=%s"),
-			*GetNameSafe(this), *InstanceId.ToString(EGuidFormats::DigitsWithHyphensLower));
+		RejectScrollUseRequest(
+			RequestId, InstanceId, ESPScrollUseResultCode::ServerError, TEXT("ConsumeRace"));
 		return;
 	}
 	if (!ScrollPlayerState->RecordScrollConsumed(ConsumedItem, ScrollDefinition->DeliveryValue))
@@ -391,6 +472,8 @@ void ASPCharacter::ServerUseScroll_Implementation(FGuid InstanceId)
 			TEXT("[SP_TECH_SPIKE_SCROLL_LEDGER_ROLLBACK] Player=%s InstanceId=%s InventoryRestored=%d"),
 			*GetNameSafe(this), *ConsumedItem.InstanceId.ToString(EGuidFormats::DigitsWithHyphensLower),
 			bInventoryRestored ? 1 : 0);
+		RejectScrollUseRequest(
+			RequestId, InstanceId, ESPScrollUseResultCode::ServerError, TEXT("LedgerCommit"));
 		return;
 	}
 
@@ -403,6 +486,32 @@ void ASPCharacter::ServerUseScroll_Implementation(FGuid InstanceId)
 
 	UE_LOG(LogScrollPeddler, Log, TEXT("[SP_TECH_SPIKE_SCROLL_CONSUMED] Player=%s InstanceId=%s SilenceEnd=%.3f Duration=%.3f"),
 		*GetNameSafe(this), *ConsumedItem.InstanceId.ToString(EGuidFormats::DigitsWithHyphensLower), SilenceEndServerTime, Duration);
+	CompleteScrollUseRequest(RequestId, InstanceId, ESPScrollUseResultCode::Success);
+}
+
+void ASPCharacter::ClientNotifyScrollUseResult_Implementation(
+	const uint32 RequestId,
+	const ESPScrollUseResultCode ResultCode)
+{
+	LastCompletedUseRequestId = RequestId;
+	LastScrollUseResult = ResultCode;
+	++ScrollUseCompletionSerial;
+	if (PendingScrollUseRequestId != RequestId)
+	{
+		UE_LOG(LogScrollPeddler, Verbose,
+			TEXT("[SP_SCROLL_USE_RESULT_STALE] Player=%s RequestId=%u PendingRequestId=%u Result=%s"),
+			*GetNameSafe(this), RequestId, PendingScrollUseRequestId,
+			*StaticEnum<ESPScrollUseResultCode>()->GetNameStringByValue(static_cast<int64>(ResultCode)));
+		return;
+	}
+
+	GetWorldTimerManager().ClearTimer(ScrollUseRequestTimeoutHandle);
+	PendingScrollUseRequestId = 0;
+	ShowScrollUseFeedback(ResultCode);
+	UE_LOG(LogScrollPeddler, Log,
+		TEXT("[SP_SCROLL_USE_RESULT] Player=%s RequestId=%u Result=%s"),
+		*GetNameSafe(this), RequestId,
+		*StaticEnum<ESPScrollUseResultCode>()->GetNameStringByValue(static_cast<int64>(ResultCode)));
 }
 
 void ASPCharacter::ServerRequestAutoExtract_Implementation()
@@ -416,7 +525,8 @@ void ASPCharacter::ServerRequestAutoExtract_Implementation()
 		UE_LOG(LogScrollPeddler, Warning, TEXT("[SP_TECH_SPIKE_EXTRACTION_REJECTED] Player=%s Reason=InvalidOwner"), *GetNameSafe(this));
 		return;
 	}
-	if (!FParse::Param(FCommandLine::Get(), TEXT("SPAutoSpike")))
+	if (!FParse::Param(FCommandLine::Get(), TEXT("SPAutoSpike")) &&
+		!FParse::Param(FCommandLine::Get(), TEXT("SPAdversarialSuite")))
 	{
 		UE_LOG(LogScrollPeddler, Warning, TEXT("[SP_TECH_SPIKE_EXTRACTION_REJECTED] Player=%s Reason=AutomationDisabled"), *GetNameSafe(this));
 		return;
@@ -440,8 +550,8 @@ void ASPCharacter::ServerRequestAutoExtract_Implementation()
 		ExtractionZone->GetExtractionPoint(), false, nullptr, ETeleportType::TeleportPhysics);
 	if (bMoved && GetCapsuleComponent())
 	{
-		// Deliberately use the normal authority overlap notification. The automation
-		// RPC never calls GameMode::TryExtractCharacter directly.
+		// 자동화 RPC도 GameMode::TryExtractCharacter를 직접 호출하지 않고
+		// 일반 권위 overlap 알림 경로를 사용한다.
 		GetCapsuleComponent()->UpdateOverlaps(nullptr, true);
 	}
 	UE_LOG(LogScrollPeddler, Log, TEXT("[SP_TECH_SPIKE_AUTO_EXTRACT_MOVED] Player=%s Moved=%d"), *GetNameSafe(this), bMoved ? 1 : 0);
@@ -499,7 +609,7 @@ void ASPCharacter::LookUp(float Value)
 
 void ASPCharacter::HandleInteract()
 {
-	if (IsPickupRequestPending())
+	if (IsPickupRequestPending() || IsScrollUseRequestPending())
 	{
 		return;
 	}
@@ -559,21 +669,215 @@ ASPPlayerState* ASPCharacter::GetActiveScrollPlayerState() const
 
 void ASPCharacter::RejectPickupRequest(
 	const uint32 RequestId,
+	const FGuid& TargetInstanceId,
 	const ESPPickupResultCode ResultCode,
 	const TCHAR* Reason,
 	const ASPScrollPickup* Pickup)
 {
 	UE_LOG(LogScrollPeddler, Warning,
-		TEXT("[SP_TECH_SPIKE_PICKUP_REJECTED] Player=%s Pickup=%s RequestId=%u Result=%s Reason=%s"),
-		*GetNameSafe(this), *GetNameSafe(Pickup), RequestId,
+		TEXT("[SP_TECH_SPIKE_PICKUP_REJECTED] Player=%s Pickup=%s InstanceId=%s RequestId=%u Result=%s Reason=%s"),
+		*GetNameSafe(this), *GetNameSafe(Pickup),
+		*TargetInstanceId.ToString(EGuidFormats::DigitsWithHyphensLower), RequestId,
 		*StaticEnum<ESPPickupResultCode>()->GetNameStringByValue(static_cast<int64>(ResultCode)), Reason);
+	CompletePickupRequest(RequestId, TargetInstanceId, ResultCode);
+}
+
+void ASPCharacter::CompletePickupRequest(
+	const uint32 RequestId,
+	const FGuid& TargetInstanceId,
+	const ESPPickupResultCode ResultCode)
+{
+	if (!TryRecordInteractionRequest(
+		RequestId,
+		EInteractionRequestAction::Pickup,
+		TargetInstanceId,
+		static_cast<uint8>(ResultCode)))
+	{
+		UE_LOG(LogScrollPeddler, Error,
+			TEXT("[SP_INTERACTION_REQUEST_RECORD_FAILED] Player=%s Action=Pickup RequestId=%u TargetId=%s"),
+			*GetNameSafe(this), RequestId,
+			*TargetInstanceId.ToString(EGuidFormats::DigitsWithHyphensLower));
+		ClientNotifyPickupResult(RequestId, ESPPickupResultCode::InvalidRequest);
+		return;
+	}
+
 	ClientNotifyPickupResult(RequestId, ResultCode);
+}
+
+void ASPCharacter::RejectScrollUseRequest(
+	const uint32 RequestId,
+	const FGuid& InstanceId,
+	const ESPScrollUseResultCode ResultCode,
+	const TCHAR* Reason)
+{
+	UE_LOG(LogScrollPeddler, Warning,
+		TEXT("[SP_TECH_SPIKE_SCROLL_REJECTED] Player=%s InstanceId=%s RequestId=%u Result=%s Reason=%s"),
+		*GetNameSafe(this), *InstanceId.ToString(EGuidFormats::DigitsWithHyphensLower), RequestId,
+		*StaticEnum<ESPScrollUseResultCode>()->GetNameStringByValue(static_cast<int64>(ResultCode)), Reason);
+	CompleteScrollUseRequest(RequestId, InstanceId, ResultCode);
+}
+
+void ASPCharacter::CompleteScrollUseRequest(
+	const uint32 RequestId,
+	const FGuid& InstanceId,
+	const ESPScrollUseResultCode ResultCode)
+{
+	if (!TryRecordInteractionRequest(
+		RequestId,
+		EInteractionRequestAction::UseScroll,
+		InstanceId,
+		static_cast<uint8>(ResultCode)))
+	{
+		UE_LOG(LogScrollPeddler, Error,
+			TEXT("[SP_INTERACTION_REQUEST_RECORD_FAILED] Player=%s Action=UseScroll RequestId=%u TargetId=%s"),
+			*GetNameSafe(this), RequestId, *InstanceId.ToString(EGuidFormats::DigitsWithHyphensLower));
+		ClientNotifyScrollUseResult(RequestId, ESPScrollUseResultCode::InvalidRequest);
+		return;
+	}
+
+	ClientNotifyScrollUseResult(RequestId, ResultCode);
+}
+
+bool ASPCharacter::HandleExistingInteractionRequest(
+	const uint32 RequestId,
+	const EInteractionRequestAction Action,
+	const FGuid& TargetId)
+{
+	const TCHAR* ActionName = Action == EInteractionRequestAction::Pickup ? TEXT("Pickup") : TEXT("UseScroll");
+	const EInteractionRequestDisposition Disposition = ClassifyInteractionRequest(
+		ServerInteractionRequestLedger, RequestId, Action, TargetId);
+	if (Disposition == EInteractionRequestDisposition::InvalidRequestId)
+	{
+		UE_LOG(LogScrollPeddler, Warning,
+			TEXT("[SP_INTERACTION_REQUEST_REJECTED] Player=%s Action=%s RequestId=0 TargetId=%s Reason=ZeroRequestId"),
+			*GetNameSafe(this), ActionName, *TargetId.ToString(EGuidFormats::DigitsWithHyphensLower));
+		NotifyInteractionResult(RequestId, Action, static_cast<uint8>(
+			Action == EInteractionRequestAction::Pickup
+				? static_cast<uint8>(ESPPickupResultCode::InvalidRequest)
+				: static_cast<uint8>(ESPScrollUseResultCode::InvalidRequest)));
+		return true;
+	}
+
+	const FInteractionRequestRecord* ExistingRecord = ServerInteractionRequestLedger.Find(RequestId);
+	if (Disposition == EInteractionRequestDisposition::ExactReplay)
+	{
+		UE_LOG(LogScrollPeddler, Log,
+			TEXT("[SP_INTERACTION_REQUEST_REPLAY] Player=%s Action=%s RequestId=%u TargetId=%s Result=%u"),
+			*GetNameSafe(this), ActionName, RequestId,
+			*TargetId.ToString(EGuidFormats::DigitsWithHyphensLower), ExistingRecord->ResultCode);
+		NotifyInteractionResult(RequestId, Action, ExistingRecord->ResultCode);
+		return true;
+	}
+
+	if (Disposition == EInteractionRequestDisposition::Conflict)
+	{
+		UE_LOG(LogScrollPeddler, Warning,
+			TEXT("[SP_INTERACTION_REQUEST_CONFLICT] Player=%s Action=%s RequestId=%u TargetId=%s OriginalAction=%s OriginalTargetId=%s"),
+			*GetNameSafe(this), ActionName, RequestId,
+			*TargetId.ToString(EGuidFormats::DigitsWithHyphensLower),
+			ExistingRecord->Action == EInteractionRequestAction::Pickup ? TEXT("Pickup") : TEXT("UseScroll"),
+			*ExistingRecord->TargetId.ToString(EGuidFormats::DigitsWithHyphensLower));
+		NotifyInteractionResult(
+			RequestId,
+			Action,
+			Action == EInteractionRequestAction::Pickup
+				? static_cast<uint8>(ESPPickupResultCode::InvalidRequest)
+				: static_cast<uint8>(ESPScrollUseResultCode::InvalidRequest));
+		return true;
+	}
+
+	if (Disposition == EInteractionRequestDisposition::LedgerFull)
+	{
+		UE_LOG(LogScrollPeddler, Warning,
+			TEXT("[SP_INTERACTION_REQUEST_REJECTED] Player=%s Action=%s RequestId=%u TargetId=%s Reason=LedgerFull Limit=%d"),
+			*GetNameSafe(this), ActionName, RequestId,
+			*TargetId.ToString(EGuidFormats::DigitsWithHyphensLower),
+			MaxInteractionRequestLedgerEntries);
+		NotifyInteractionResult(
+			RequestId,
+			Action,
+			Action == EInteractionRequestAction::Pickup
+				? static_cast<uint8>(ESPPickupResultCode::InvalidRequest)
+				: static_cast<uint8>(ESPScrollUseResultCode::InvalidRequest));
+		return true;
+	}
+
+	return false;
+}
+
+bool ASPCharacter::TryRecordInteractionRequest(
+	const uint32 RequestId,
+	const EInteractionRequestAction Action,
+	const FGuid& TargetId,
+	const uint8 ResultCode)
+{
+	return TryRecordInteractionRequestInLedger(
+		ServerInteractionRequestLedger, RequestId, Action, TargetId, ResultCode);
+}
+
+ASPCharacter::EInteractionRequestDisposition ASPCharacter::ClassifyInteractionRequest(
+	const TMap<uint32, FInteractionRequestRecord>& Ledger,
+	const uint32 RequestId,
+	const EInteractionRequestAction Action,
+	const FGuid& TargetId)
+{
+	if (RequestId == 0)
+	{
+		return EInteractionRequestDisposition::InvalidRequestId;
+	}
+
+	if (const FInteractionRequestRecord* ExistingRecord = Ledger.Find(RequestId))
+	{
+		return ExistingRecord->Action == Action && ExistingRecord->TargetId == TargetId
+			? EInteractionRequestDisposition::ExactReplay
+			: EInteractionRequestDisposition::Conflict;
+	}
+
+	return Ledger.Num() >= MaxInteractionRequestLedgerEntries
+		? EInteractionRequestDisposition::LedgerFull
+		: EInteractionRequestDisposition::NewRequest;
+}
+
+bool ASPCharacter::TryRecordInteractionRequestInLedger(
+	TMap<uint32, FInteractionRequestRecord>& Ledger,
+	const uint32 RequestId,
+	const EInteractionRequestAction Action,
+	const FGuid& TargetId,
+	const uint8 ResultCode)
+{
+	if (ClassifyInteractionRequest(Ledger, RequestId, Action, TargetId) !=
+		EInteractionRequestDisposition::NewRequest)
+	{
+		return false;
+	}
+
+	FInteractionRequestRecord& NewRecord = Ledger.Add(RequestId);
+	NewRecord.Action = Action;
+	NewRecord.TargetId = TargetId;
+	NewRecord.ResultCode = ResultCode;
+	return true;
+}
+
+void ASPCharacter::NotifyInteractionResult(
+	const uint32 RequestId,
+	const EInteractionRequestAction Action,
+	const uint8 ResultCode)
+{
+	if (Action == EInteractionRequestAction::Pickup)
+	{
+		ClientNotifyPickupResult(RequestId, static_cast<ESPPickupResultCode>(ResultCode));
+	}
+	else
+	{
+		ClientNotifyScrollUseResult(RequestId, static_cast<ESPScrollUseResultCode>(ResultCode));
+	}
 }
 
 void ASPCharacter::BeginLocalPickupRequest(const uint32 RequestId)
 {
 	PendingPickupRequestId = RequestId;
 	PickupFeedbackExpiresAt = 0.0;
+	ScrollUseFeedbackExpiresAt = 0.0;
 	bPickupFeedbackNoTarget = false;
 	bPickupFeedbackTimedOut = false;
 
@@ -629,14 +933,76 @@ void ASPCharacter::ShowPickupFeedback(
 	PickupFeedbackExpiresAt = GetWorld()->GetTimeSeconds() + PickupResultFeedbackSeconds;
 }
 
-uint32 ASPCharacter::AllocatePickupRequestId()
+void ASPCharacter::BeginLocalScrollUseRequest(const uint32 RequestId)
 {
-	const uint32 RequestId = NextPickupRequestId++;
-	if (NextPickupRequestId == 0)
+	PendingScrollUseRequestId = RequestId;
+	ScrollUseFeedbackExpiresAt = 0.0;
+	PickupFeedbackExpiresAt = 0.0;
+	bScrollUseFeedbackTimedOut = false;
+
+	GetWorldTimerManager().ClearTimer(ScrollUseRequestTimeoutHandle);
+	FTimerDelegate TimeoutDelegate = FTimerDelegate::CreateUObject(
+		this, &ASPCharacter::HandleScrollUseRequestTimeout, RequestId);
+	GetWorldTimerManager().SetTimer(
+		ScrollUseRequestTimeoutHandle,
+		MoveTemp(TimeoutDelegate),
+		ScrollUseRequestTimeoutSeconds,
+		false);
+}
+
+void ASPCharacter::HandleScrollUseRequestTimeout(const uint32 RequestId)
+{
+	if (PendingScrollUseRequestId != RequestId)
 	{
-		NextPickupRequestId = 1;
+		return;
 	}
-	return RequestId == 0 ? AllocatePickupRequestId() : RequestId;
+
+	PendingScrollUseRequestId = 0;
+	ShowScrollUseFeedback(ESPScrollUseResultCode::ServerError, true);
+	UE_LOG(LogScrollPeddler, Warning,
+		TEXT("[SP_SCROLL_USE_FEEDBACK_TIMEOUT] Player=%s RequestId=%u"),
+		*GetNameSafe(this), RequestId);
+}
+
+void ASPCharacter::ShowScrollUseFeedback(
+	const ESPScrollUseResultCode ResultCode,
+	const bool bTimedOut)
+{
+	if (!GetWorld())
+	{
+		return;
+	}
+
+	LastScrollUseResult = ResultCode;
+	bScrollUseFeedbackTimedOut = bTimedOut;
+	ScrollUseFeedbackExpiresAt = GetWorld()->GetTimeSeconds() + ScrollUseResultFeedbackSeconds;
+}
+
+uint32 ASPCharacter::AllocateInteractionRequestId()
+{
+	return AllocateInteractionRequestIdFromCounter(NextInteractionRequestId);
+}
+
+uint32 ASPCharacter::AllocateInteractionRequestIdFromCounter(uint32& NextRequestId)
+{
+	if (NextRequestId == 0)
+	{
+		NextRequestId = 1;
+	}
+
+	const uint32 RequestId = NextRequestId++;
+	if (NextRequestId == 0)
+	{
+		NextRequestId = 1;
+	}
+	return RequestId;
+}
+
+bool ASPCharacter::IsPickupWithinRange(
+	const FVector& CharacterLocation,
+	const FVector& PickupLocation)
+{
+	return FVector::DistSquared(CharacterLocation, PickupLocation) <= FMath::Square(MaxPickupDistance);
 }
 
 void ASPCharacter::OnRep_SilenceEndServerTime()

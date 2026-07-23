@@ -121,12 +121,12 @@ bool ASPScrollPickup::CommitClaim(ASPCharacter* Claimant)
 	CancelPickupVisualLoad();
 	ApplyClaimedPresentation();
 	ForceNetUpdate();
-	// Keep the claimed actor addressable long enough for the second packaged
-	// smoke client to exercise the authoritative rejection path. Normal play
-	// keeps the original short cleanup window.
+	// 패키지 클라이언트가 contested/replay 권위 경로를 검증하는 동안 fixture 주소를 유지한다.
+	// 일반 플레이에서는 짧은 정리 시간을 사용한다.
 	float ClaimedLifeSpan = 0.10f;
 #if !UE_BUILD_SHIPPING
-	if (FParse::Param(FCommandLine::Get(), TEXT("SPAutoContestedPickup")))
+	if (FParse::Param(FCommandLine::Get(), TEXT("SPAutoContestedPickup")) ||
+		FParse::Param(FCommandLine::Get(), TEXT("SPAdversarialSuite")))
 	{
 		ClaimedLifeSpan = 5.0f;
 	}
@@ -189,8 +189,8 @@ void ASPScrollPickup::RequestPickupVisual()
 		BundlesToLoad,
 		false,
 		MoveTemp(LoadParams));
-	// A completed request owns the handle passed to its queued callback. Only
-	// retain pending work here so claim/EndPlay can cancel it.
+	// 완료된 요청은 대기 callback에 전달된 handle을 소유한다.
+	// claim/EndPlay에서 취소할 수 있도록 진행 중인 작업만 보관한다.
 	if (NewHandle.IsValid() && !NewHandle->HasLoadCompleted())
 	{
 		PickupVisualLoadHandle = MoveTemp(NewHandle);
@@ -212,9 +212,8 @@ void ASPScrollPickup::HandlePickupVisualLoaded(
 	{
 		PickupVisualLoadHandle.Reset();
 	}
-	// The callback parameter pins the preload until the mesh component takes a
-	// hard reference. It is valid even if completion happened before the caller
-	// could store the returned handle.
+	// callback 파라미터는 mesh component가 hard reference를 얻을 때까지 preload를 유지한다.
+	// 호출자가 반환 handle을 저장하기 전에 완료됐더라도 유효하다.
 	if (!CompletedHandle.IsValid())
 	{
 		ApplyFallbackVisual();

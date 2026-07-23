@@ -40,17 +40,30 @@ enum class ESPSessionPhase : uint8
 	SettlementCommitted
 };
 
-/** Owning-client-safe outcome of an authoritative world-pickup request. */
+/** 권위 서버의 월드 픽업 판정을 owning client에 안전하게 전달하는 결과다. */
 UENUM(BlueprintType)
 enum class ESPPickupResultCode : uint8
 {
 	Success,
 	InvalidRequest,
+	InactivePlayer,
 	OutOfRange,
 	InventoryFull,
 	Unavailable,
 	Obstructed,
 	Contested,
+	ServerError
+};
+
+/** 권위 서버의 스크롤 사용 판정을 owning client에 안전하게 전달하는 결과다. */
+UENUM(BlueprintType)
+enum class ESPScrollUseResultCode : uint8
+{
+	Success,
+	InvalidRequest,
+	InactivePlayer,
+	NotOwned,
+	InvalidDefinition,
 	ServerError
 };
 
@@ -119,8 +132,8 @@ struct SCROLLPEDDLER_API FSPSessionResult
 	int64 CompletedAtUnixSeconds = 0;
 
 	/**
-	 * Deterministic local integrity checksum only. This is not an authenticity
-	 * proof, anti-tamper signature, or substitute for server-side validation.
+	 * 결정적인 로컬 무결성 체크섬일 뿐이다. 진위 증명, 변조 방지 서명,
+	 * 서버 검증의 대체 수단으로 사용하지 않는다.
 	 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, SaveGame)
 	FString ResultHash;
@@ -133,15 +146,15 @@ struct SCROLLPEDDLER_API FSPSessionResult
 
 SCROLLPEDDLER_API float SPGetQualityMultiplier(ESPScrollQuality Quality);
 
-/** Builds an MD5-based integrity checksum over the canonical UTF-8 result bytes. */
+/** 정규화된 UTF-8 결과 바이트로 MD5 기반 무결성 체크섬을 만든다. */
 SCROLLPEDDLER_API FString SPBuildSessionResultHash(const FSPSessionResult& Result);
 
-/** Validates the result shape and its local integrity checksum. */
+/** 결과 형식과 로컬 무결성 체크섬을 검증한다. */
 SCROLLPEDDLER_API bool SPIsSessionResultIntegrityValid(const FSPSessionResult& Result);
 
 /**
- * Returns true only when two records identify the same exact committed result.
- * PlayerId and ResultHash comparisons are deliberately case-sensitive.
+ * 두 레코드가 정확히 같은 확정 결과를 가리킬 때만 true를 반환한다.
+ * PlayerId와 ResultHash는 의도적으로 대소문자를 구분한다.
  */
 SCROLLPEDDLER_API bool SPIsIdempotentSessionResult(
 	const FSPSessionResult& ExistingResult,
