@@ -8,6 +8,7 @@
 
 class USPScrollEngravingDefinition;
 class FDataValidationContext;
+class UStaticMesh;
 
 UCLASS(BlueprintType, Const)
 class SCROLLPEDDLER_API USPScrollDefinition : public UPrimaryDataAsset
@@ -40,6 +41,10 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Engravings")
 	TArray<TSoftObjectPtr<USPScrollEngravingDefinition>> AllowedEngravings;
+
+	/** Replaceable world pickup art. Loaded through the Pickup primary-asset bundle. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Presentation", meta = (AssetBundles = "Pickup"))
+	TSoftObjectPtr<UStaticMesh> PickupMesh;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Tags")
 	FGameplayTagContainer Tags;

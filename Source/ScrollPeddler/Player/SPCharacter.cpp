@@ -3,6 +3,7 @@
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/InputComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Data/SPScrollDefinition.h"
 #include "Data/SPScrollEngravingDefinition.h"
@@ -13,13 +14,13 @@
 #include "GameFramework/Controller.h"
 #include "GameFramework/GameStateBase.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "GameFramework/SpringArmComponent.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "Net/UnrealNetwork.h"
 #include "Player/SPInventoryComponent.h"
 #include "ScrollPeddler.h"
 #include "UObject/ConstructorHelpers.h"
+#include "TimerManager.h"
 #include "World/SPExtractionZone.h"
 #include "World/SPScrollPickup.h"
 
@@ -47,40 +48,49 @@ ASPCharacter::ASPCharacter()
 {
 	PrimaryActorTick.bCanEverTick = false;
 	bReplicates = true;
+	BaseEyeHeight = 64.0f;
 
 	bUseControllerRotationPitch = false;
-	bUseControllerRotationYaw = false;
+	bUseControllerRotationYaw = true;
 	bUseControllerRotationRoll = false;
 
 	UCharacterMovementComponent* Movement = GetCharacterMovement();
-	Movement->bOrientRotationToMovement = true;
+	Movement->bOrientRotationToMovement = false;
 	Movement->RotationRate = FRotator(0.0f, 500.0f, 0.0f);
 	Movement->JumpZVelocity = 700.0f;
 	Movement->AirControl = 0.35f;
 	Movement->MaxWalkSpeed = 500.0f;
 
-	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
-	CameraBoom->SetupAttachment(RootComponent);
-	CameraBoom->TargetArmLength = 400.0f;
-	CameraBoom->bUsePawnControlRotation = true;
+	FirstPersonCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FirstPersonCamera"));
+	FirstPersonCamera->SetupAttachment(GetCapsuleComponent());
+	FirstPersonCamera->SetRelativeLocation(FVector(0.0f, 0.0f, BaseEyeHeight));
+	FirstPersonCamera->SetFieldOfView(90.0f);
+	FirstPersonCamera->bUsePawnControlRotation = true;
 
-	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
-	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
-	FollowCamera->bUsePawnControlRotation = false;
+	FirstPersonHands = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("FirstPersonHands"));
+	FirstPersonHands->SetupAttachment(FirstPersonCamera);
+	FirstPersonHands->SetOnlyOwnerSee(true);
+	FirstPersonHands->SetOwnerNoSee(false);
+	FirstPersonHands->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	FirstPersonHands->SetGenerateOverlapEvents(false);
+	FirstPersonHands->SetCastShadow(false);
+	FirstPersonHands->SetIsReplicated(false);
 
 	Inventory = CreateDefaultSubobject<USPInventoryComponent>(TEXT("Inventory"));
 
-	DebugBodyMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("DebugBodyMesh"));
-	DebugBodyMesh->SetupAttachment(RootComponent);
-	DebugBodyMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	DebugBodyMesh->SetRelativeScale3D(FVector(0.55f, 0.55f, 1.75f));
-	DebugBodyMesh->SetOwnerNoSee(true);
-	DebugBodyMesh->SetIsReplicated(true);
+	RemoteBodyMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("RemoteBodyMesh"));
+	RemoteBodyMesh->SetupAttachment(RootComponent);
+	RemoteBodyMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	RemoteBodyMesh->SetGenerateOverlapEvents(false);
+	RemoteBodyMesh->SetRelativeScale3D(FVector(0.55f, 0.55f, 1.75f));
+	RemoteBodyMesh->SetOwnerNoSee(true);
+	RemoteBodyMesh->SetOnlyOwnerSee(false);
+	RemoteBodyMesh->SetIsReplicated(false);
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> DebugCubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
 	if (DebugCubeMesh.Succeeded())
 	{
-		DebugBodyMesh->SetStaticMesh(DebugCubeMesh.Object);
+		RemoteBodyMesh->SetStaticMesh(DebugCubeMesh.Object);
 	}
 }
 
@@ -104,6 +114,15 @@ void ASPCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(ASPCharacter, SilenceEndServerTime);
+}
+
+void ASPCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (GetWorld())
+	{
+		GetWorldTimerManager().ClearTimer(PickupRequestTimeoutHandle);
+	}
+	Super::EndPlay(EndPlayReason);
 }
 
 USPInventoryComponent& ASPCharacter::GetInventory()
@@ -130,13 +149,71 @@ void ASPCharacter::RequestPickup(ASPScrollPickup* Pickup)
 {
 	if (!CanRequestInteraction() || !IsValid(Pickup))
 	{
+		if (IsLocallyControlled())
+		{
+			ShowNoTargetPickupFeedback();
+		}
 		return;
 	}
 
-	if (HasAuthority() || IsLocallyControlled())
+	// Input/automation intent must originate on the locally controlled pawn.
+	// Authority-side code must not manufacture a request for a remote pawn,
+	// because its owning client would not have the matching pending RequestId.
+	if (!IsLocallyControlled())
 	{
-		ServerTryPickup(Pickup);
+		return;
 	}
+	if (IsPickupRequestPending())
+	{
+		UE_LOG(LogScrollPeddler, Verbose,
+			TEXT("[SP_PICKUP_REQUEST_SKIPPED] Player=%s PendingRequestId=%u"),
+			*GetNameSafe(this), PendingPickupRequestId);
+		return;
+	}
+
+	const uint32 RequestId = AllocatePickupRequestId();
+	BeginLocalPickupRequest(RequestId);
+	UE_LOG(LogScrollPeddler, Log,
+		TEXT("[SP_PICKUP_REQUEST] Player=%s Pickup=%s RequestId=%u"),
+		*GetNameSafe(this), *GetNameSafe(Pickup), RequestId);
+	ServerTryPickup(Pickup, RequestId);
+}
+
+ASPScrollPickup* ASPCharacter::FindPickupInView() const
+{
+	if (!GetWorld() || !CanRequestInteraction())
+	{
+		return nullptr;
+	}
+
+	FVector ViewLocation;
+	FRotator ViewRotation;
+	if (Controller)
+	{
+		Controller->GetPlayerViewPoint(ViewLocation, ViewRotation);
+	}
+	else
+	{
+		ViewLocation = GetPawnViewLocation();
+		ViewRotation = GetActorRotation();
+	}
+
+	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(SPInteractTrace), false, this);
+	FHitResult Hit;
+	const FVector TraceEnd = ViewLocation + ViewRotation.Vector() * MaxPickupDistance;
+	if (!GetWorld()->LineTraceSingleByChannel(
+		Hit, ViewLocation, TraceEnd, ECC_Visibility, QueryParams))
+	{
+		return nullptr;
+	}
+
+	ASPScrollPickup* Pickup = Cast<ASPScrollPickup>(Hit.GetActor());
+	return IsValid(Pickup) && Pickup->IsAvailable() ? Pickup : nullptr;
+}
+
+bool ASPCharacter::HasActivePickupFeedback() const
+{
+	return GetWorld() && PickupFeedbackExpiresAt > GetWorld()->GetTimeSeconds();
 }
 
 void ASPCharacter::RequestUseFirst()
@@ -158,47 +235,50 @@ void ASPCharacter::RequestUseFirst()
 	}
 }
 
-void ASPCharacter::ServerTryPickup_Implementation(ASPScrollPickup* Pickup)
+void ASPCharacter::ServerTryPickup_Implementation(ASPScrollPickup* Pickup, const uint32 RequestId)
 {
 	if (!HasValidOwningController())
 	{
-		LogPickupRejected(TEXT("InvalidOwner"), Pickup);
+		RejectPickupRequest(RequestId, ESPPickupResultCode::InvalidRequest, TEXT("InvalidOwner"), Pickup);
 		return;
 	}
 	ASPPlayerState* ScrollPlayerState = GetActiveScrollPlayerState();
 	if (!ScrollPlayerState)
 	{
-		LogPickupRejected(TEXT("InactivePlayerState"), Pickup);
+		RejectPickupRequest(RequestId, ESPPickupResultCode::InvalidRequest, TEXT("InactivePlayerState"), Pickup);
 		return;
 	}
 	if (!IsValid(Pickup) || !Pickup->HasAuthority() || Pickup->GetWorld() != GetWorld())
 	{
-		LogPickupRejected(TEXT("InvalidPickup"), Pickup);
+		RejectPickupRequest(RequestId, ESPPickupResultCode::InvalidRequest, TEXT("InvalidPickup"), Pickup);
 		return;
 	}
 	if (FVector::DistSquared(GetActorLocation(), Pickup->GetActorLocation()) > FMath::Square(MaxPickupDistance))
 	{
-		LogPickupRejected(TEXT("Distance"), Pickup);
+		RejectPickupRequest(RequestId, ESPPickupResultCode::OutOfRange, TEXT("Distance"), Pickup);
 		return;
 	}
 	if (!Inventory || !Inventory->HasCapacity())
 	{
-		LogPickupRejected(TEXT("Capacity"), Pickup);
+		RejectPickupRequest(RequestId, ESPPickupResultCode::InventoryFull, TEXT("Capacity"), Pickup);
 		return;
 	}
-	if (!Pickup->IsAvailable())
+	// Presentation availability is useful to the local trace and automation
+	// selector, but the server must let TryReserve classify an already claimed
+	// or concurrently reserved pickup as Contested.
+	if (!Pickup->GetScrollInstance().IsValid())
 	{
-		LogPickupRejected(TEXT("Unavailable"), Pickup);
+		RejectPickupRequest(RequestId, ESPPickupResultCode::Unavailable, TEXT("InvalidInstance"), Pickup);
 		return;
 	}
 	if (!HasLineOfSightToPickup(Pickup))
 	{
-		LogPickupRejected(TEXT("LineOfSight"), Pickup);
+		RejectPickupRequest(RequestId, ESPPickupResultCode::Obstructed, TEXT("LineOfSight"), Pickup);
 		return;
 	}
 	if (!Pickup->TryReserve(this))
 	{
-		LogPickupRejected(TEXT("Reservation"), Pickup);
+		RejectPickupRequest(RequestId, ESPPickupResultCode::Contested, TEXT("Reservation"), Pickup);
 		return;
 	}
 
@@ -206,7 +286,7 @@ void ASPCharacter::ServerTryPickup_Implementation(ASPScrollPickup* Pickup)
 	if (!Inventory->TryAddItem(Item))
 	{
 		Pickup->ReleaseReservation(this);
-		LogPickupRejected(TEXT("InventoryCommit"), Pickup);
+		RejectPickupRequest(RequestId, ESPPickupResultCode::InventoryFull, TEXT("InventoryCommit"), Pickup);
 		return;
 	}
 
@@ -218,7 +298,7 @@ void ASPCharacter::ServerTryPickup_Implementation(ASPScrollPickup* Pickup)
 		UE_LOG(LogScrollPeddler, Error,
 			TEXT("[SP_TECH_SPIKE_PICKUP_LEDGER_ROLLBACK] Player=%s InstanceId=%s InventoryRestored=%d"),
 			*GetNameSafe(this), *Item.InstanceId.ToString(EGuidFormats::DigitsWithHyphensLower), bInventoryRolledBack ? 1 : 0);
-		LogPickupRejected(TEXT("LedgerCommit"), Pickup);
+		RejectPickupRequest(RequestId, ESPPickupResultCode::ServerError, TEXT("LedgerCommit"), Pickup);
 		return;
 	}
 
@@ -232,12 +312,35 @@ void ASPCharacter::ServerTryPickup_Implementation(ASPScrollPickup* Pickup)
 			TEXT("[SP_TECH_SPIKE_PICKUP_COMMIT_ROLLBACK] Player=%s InstanceId=%s InventoryRestored=%d LedgerRestored=%d"),
 			*GetNameSafe(this), *Item.InstanceId.ToString(EGuidFormats::DigitsWithHyphensLower),
 			bInventoryRolledBack ? 1 : 0, bLedgerRolledBack ? 1 : 0);
-		LogPickupRejected(TEXT("PickupCommit"), Pickup);
+		RejectPickupRequest(RequestId, ESPPickupResultCode::ServerError, TEXT("PickupCommit"), Pickup);
 		return;
 	}
 
 	UE_LOG(LogScrollPeddler, Log, TEXT("[SP_TECH_SPIKE_PICKUP_COMMITTED] Player=%s Pickup=%s InstanceId=%s Count=%d"),
 		*GetNameSafe(this), *GetNameSafe(Pickup), *Item.InstanceId.ToString(EGuidFormats::DigitsWithHyphensLower), Inventory->GetItemCount());
+	ClientNotifyPickupResult(RequestId, ESPPickupResultCode::Success);
+}
+
+void ASPCharacter::ClientNotifyPickupResult_Implementation(
+	const uint32 RequestId,
+	const ESPPickupResultCode ResultCode)
+{
+	if (PendingPickupRequestId != RequestId)
+	{
+		UE_LOG(LogScrollPeddler, Verbose,
+			TEXT("[SP_PICKUP_RESULT_STALE] Player=%s RequestId=%u PendingRequestId=%u Result=%s"),
+			*GetNameSafe(this), RequestId, PendingPickupRequestId,
+			*StaticEnum<ESPPickupResultCode>()->GetNameStringByValue(static_cast<int64>(ResultCode)));
+		return;
+	}
+
+	GetWorldTimerManager().ClearTimer(PickupRequestTimeoutHandle);
+	PendingPickupRequestId = 0;
+	ShowPickupFeedback(ResultCode);
+	UE_LOG(LogScrollPeddler, Log,
+		TEXT("[SP_PICKUP_RESULT] Player=%s RequestId=%u Result=%s"),
+		*GetNameSafe(this), RequestId,
+		*StaticEnum<ESPPickupResultCode>()->GetNameStringByValue(static_cast<int64>(ResultCode)));
 }
 
 void ASPCharacter::ServerUseScroll_Implementation(FGuid InstanceId)
@@ -396,29 +499,18 @@ void ASPCharacter::LookUp(float Value)
 
 void ASPCharacter::HandleInteract()
 {
-	if (!GetWorld())
+	if (IsPickupRequestPending())
 	{
 		return;
 	}
 
-	FVector ViewLocation;
-	FRotator ViewRotation;
-	if (Controller)
+	if (ASPScrollPickup* Pickup = FindPickupInView())
 	{
-		Controller->GetPlayerViewPoint(ViewLocation, ViewRotation);
+		RequestPickup(Pickup);
 	}
 	else
 	{
-		ViewLocation = GetPawnViewLocation();
-		ViewRotation = GetActorRotation();
-	}
-
-	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(SPInteractTrace), false, this);
-	FHitResult Hit;
-	const FVector TraceEnd = ViewLocation + ViewRotation.Vector() * MaxPickupDistance;
-	if (GetWorld()->LineTraceSingleByChannel(Hit, ViewLocation, TraceEnd, ECC_Visibility, QueryParams))
-	{
-		RequestPickup(Cast<ASPScrollPickup>(Hit.GetActor()));
+		ShowNoTargetPickupFeedback();
 	}
 }
 
@@ -465,10 +557,86 @@ ASPPlayerState* ASPCharacter::GetActiveScrollPlayerState() const
 		: nullptr;
 }
 
-void ASPCharacter::LogPickupRejected(const TCHAR* Reason, const ASPScrollPickup* Pickup) const
+void ASPCharacter::RejectPickupRequest(
+	const uint32 RequestId,
+	const ESPPickupResultCode ResultCode,
+	const TCHAR* Reason,
+	const ASPScrollPickup* Pickup)
 {
-	UE_LOG(LogScrollPeddler, Warning, TEXT("[SP_TECH_SPIKE_PICKUP_REJECTED] Player=%s Pickup=%s Reason=%s"),
-		*GetNameSafe(this), *GetNameSafe(Pickup), Reason);
+	UE_LOG(LogScrollPeddler, Warning,
+		TEXT("[SP_TECH_SPIKE_PICKUP_REJECTED] Player=%s Pickup=%s RequestId=%u Result=%s Reason=%s"),
+		*GetNameSafe(this), *GetNameSafe(Pickup), RequestId,
+		*StaticEnum<ESPPickupResultCode>()->GetNameStringByValue(static_cast<int64>(ResultCode)), Reason);
+	ClientNotifyPickupResult(RequestId, ResultCode);
+}
+
+void ASPCharacter::BeginLocalPickupRequest(const uint32 RequestId)
+{
+	PendingPickupRequestId = RequestId;
+	PickupFeedbackExpiresAt = 0.0;
+	bPickupFeedbackNoTarget = false;
+	bPickupFeedbackTimedOut = false;
+
+	GetWorldTimerManager().ClearTimer(PickupRequestTimeoutHandle);
+	FTimerDelegate TimeoutDelegate = FTimerDelegate::CreateUObject(
+		this, &ASPCharacter::HandlePickupRequestTimeout, RequestId);
+	GetWorldTimerManager().SetTimer(
+		PickupRequestTimeoutHandle,
+		MoveTemp(TimeoutDelegate),
+		PickupRequestTimeoutSeconds,
+		false);
+}
+
+void ASPCharacter::HandlePickupRequestTimeout(const uint32 RequestId)
+{
+	if (PendingPickupRequestId != RequestId)
+	{
+		return;
+	}
+
+	PendingPickupRequestId = 0;
+	ShowPickupFeedback(ESPPickupResultCode::ServerError, true);
+	UE_LOG(LogScrollPeddler, Warning,
+		TEXT("[SP_PICKUP_FEEDBACK_TIMEOUT] Player=%s RequestId=%u"),
+		*GetNameSafe(this), RequestId);
+}
+
+void ASPCharacter::ShowNoTargetPickupFeedback()
+{
+	if (!IsLocallyControlled() || IsPickupRequestPending() || !GetWorld())
+	{
+		return;
+	}
+
+	LastPickupResult = ESPPickupResultCode::InvalidRequest;
+	bPickupFeedbackNoTarget = true;
+	bPickupFeedbackTimedOut = false;
+	PickupFeedbackExpiresAt = GetWorld()->GetTimeSeconds() + NoTargetFeedbackSeconds;
+}
+
+void ASPCharacter::ShowPickupFeedback(
+	const ESPPickupResultCode ResultCode,
+	const bool bTimedOut)
+{
+	if (!GetWorld())
+	{
+		return;
+	}
+
+	LastPickupResult = ResultCode;
+	bPickupFeedbackNoTarget = false;
+	bPickupFeedbackTimedOut = bTimedOut;
+	PickupFeedbackExpiresAt = GetWorld()->GetTimeSeconds() + PickupResultFeedbackSeconds;
+}
+
+uint32 ASPCharacter::AllocatePickupRequestId()
+{
+	const uint32 RequestId = NextPickupRequestId++;
+	if (NextPickupRequestId == 0)
+	{
+		NextPickupRequestId = 1;
+	}
+	return RequestId == 0 ? AllocatePickupRequestId() : RequestId;
 }
 
 void ASPCharacter::OnRep_SilenceEndServerTime()

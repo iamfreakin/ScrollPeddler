@@ -50,6 +50,10 @@ Controls:
 - `E`: request pickup of the visible scroll under the crosshair
 - `Q`: request use of the first inventory scroll
 
+The first-person crosshair is white by default, cyan over a valid pickup,
+yellow while the request is pending, green after server acceptance, and red
+after a rejection.
+
 The cylindrical extraction marker is on the opposite side of the graybox room.
 Normal extraction is driven by the server-side overlap callback.
 
@@ -106,7 +110,12 @@ $PackageRoot = Join-Path $ProjectRoot 'Saved\Packages\Windows'
 `-SPAutoSpike` and `-SPAutoQuit` exist only for unattended Development smoke
 tests. The auto-extraction RPC rejects Shipping builds. Pass a distinct
 `-SPProfileSlot=` value to each same-PC process so they do not share a save
-slot.
+slot. `-SPAutoContestedPickup` makes each process target the lowest stable
+pickup ID after the expected roster is present, then fall back to the nearest
+available pickup. In non-Shipping builds it also keeps the first claimed actor
+addressable for five seconds, so the second request reaches the server and the
+smoke path deterministically exercises one authoritative `Contested` pickup
+rejection.
 
 ## Current limits
 

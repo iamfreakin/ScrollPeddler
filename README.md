@@ -8,7 +8,7 @@
 
 | 영역 | 구현됨 | 다음 단계 |
 |---|---|---|
-| 플레이어 | 이동, 시점 조작, 상호작용, 디버그 바디 | 최종 1인칭 카메라·손·월드 바디 분리 |
+| 플레이어 | 1인칭 카메라, 소유자 전용 손 슬롯, 원격 디버그 바디, 상호작용 | 최종 스켈레탈 메시·애니메이션 |
 | 멀티플레이 | 로컬 2프로세스 Listen Server, raw IP 접속 | Steam 세션·친구 초대, 3–4인, 재접속 |
 | 아이템 | 서버 권위 줍기, 거리·시야·용량·소유권 검증 | 버리기, 퀵슬롯, 적대적 네트워크 기능 테스트 |
 | 스크롤 | 기본 계열 1종, 속성 각인 2종, 서버 소비 | 제작, 6계열×2각인 버티컬 슬라이스 |
@@ -18,7 +18,7 @@
 | 월드 | 코드 기반 회색 상자 테스트 맵 | 룸 모듈·절차 생성·몬스터·위협 디렉터 |
 | 빌드 | Development Editor/Game, 자동화, Win64 패키지 | CI, Steam 배포 브랜치 |
 
-현재 카메라는 검증용 3인칭 Spring Arm 구성입니다. 최종 제품 방향은 1인칭이며 다음 구현 마일스톤에서 전환합니다.
+현재 플레이어 표현은 1인칭 카메라, 로컬 소유자 전용 손 슬롯, 원격 플레이어용 월드 바디를 분리한 구조입니다. 손과 원격 바디는 기술 검증용 임시 표현이며 최종 스켈레탈 메시와 애니메이션은 후속 콘텐츠 작업에서 교체합니다.
 
 ## 기술 방향
 
@@ -40,6 +40,10 @@
 - Git 및 Git LFS
 
 RiderLink는 로컬 Engine에 설치합니다. IDE 인덱스, 솔루션, `Binaries`, `Intermediate`, `Saved` 등 생성 파일은 저장소에 올리지 않습니다.
+
+Blender MCP는 모델링 자동화 파일럿에 사용하는 선택적 개발 도구이며 게임 빌드에는 필요하지 않습니다. 고정 버전, 로컬 연결과 텔레메트리 차단 절차는 [Blender MCP 개발 환경](Docs/BLENDER_MCP_SETUP.md)을 참고하세요.
+
+팀 공유 Blender 원본, 결정적 FBX 게시, Unreal 반입과 런타임 표현 연결 규칙은 [Blender → Unreal 정적 메시 파이프라인](Docs/ART_PIPELINE.md)을 따릅니다.
 
 ## 시작하기
 
@@ -86,6 +90,8 @@ SPJoin 127.0.0.1
 - `E`: 조준한 스크롤 줍기 요청
 - `Q`: 인벤토리 첫 스크롤 사용 요청
 
+1인칭 화면 중앙의 크로스헤어는 평소 흰색이며, 유효한 스크롤을 조준하면 청록색과 `[E] PICK UP` 안내로 바뀝니다. 요청 중에는 노란색, 서버 수락은 녹색, 거부는 붉은색 결과로 표시됩니다.
+
 반대편 원통형 마커에 도달하면 서버 권위 탈출·정산·로컬 저장 흐름이 시작됩니다.
 
 ## 검증
@@ -103,9 +109,10 @@ $Report = (Join-Path (Get-Location) 'Saved\AutomationReports\TechSpike')
   "-ReportExportPath=$Report"
 ```
 
-2026-07-11 기준으로 다음을 검증했습니다.
+2026-07-23 기준으로 다음을 검증했습니다.
 
-- Scroll Peddler 자동화 테스트 5개 통과
+- Blender 5.2.0 export부터 Unreal legacy FBX import 및 strict `ValidateOnly`까지 통과
+- Scroll Peddler 자동화 테스트 8개 통과
 - Development Editor 및 Development Game 빌드 통과
 - Win64 패키징 통과
 - 패키지 호스트·클라이언트 2프로세스 smoke 통과
@@ -121,6 +128,7 @@ Config/                 Unreal 프로젝트 설정
 Content/                맵과 Data Asset — Git LFS 대상
 Docs/                   기술 검증 및 운영 문서
 Scripts/                재현 가능한 에디터 콘텐츠 생성 스크립트
+SourceAssets/           Blender 원본과 게시 FBX — Git LFS 대상
 Source/ScrollPeddler/    Runtime C++ 모듈
   Core/                 공통 타입과 결과 무결성
   Data/                 스크롤·각인 Primary Data Asset 정의
@@ -132,14 +140,15 @@ Source/ScrollPeddler/    Runtime C++ 모듈
   World/                픽업, 탈출, 회색 상자 액터
 ```
 
-## 다음 구현 순서
+## 구현 게이트
 
-1. 최종 1인칭 카메라·손·다른 플레이어 바디 구조
-2. 상호작용의 로컬 피드백과 서버 확정/거부 분리
-3. 거리·LOS·소유권 위조·동시 claim 멀티플레이 테스트
-4. 소리에 반응하는 회색 상자 위협 1종
-5. 납품할 스크롤을 보존할지 소비할지 검증하는 10세션 플레이테스트
-6. Steam Listen Session과 친구 초대
+- [x] 1인칭 카메라·소유자 전용 손·원격 플레이어 바디 구조
+- [x] 상호작용의 로컬 피드백과 서버 확정·거부 경계 분리
+- [ ] 거리·LOS·소유권 위조·동시 claim을 포함한 적대적 멀티플레이 테스트
+- [x] 패키지 호스트·클라이언트 2프로세스 smoke 기준선
+- [ ] G1/G2 성공 기준과 소리에 반응하는 회색 상자 위협을 포함한 핵심 루프 플레이테스트
+
+4인 경로가 구현되면 패키지 smoke를 4프로세스로 확장합니다. Steam Listen Session과 친구 초대는 raw IP 기술 스파이크 이후의 후속 범위입니다.
 
 상세 게임 기획은 [Scroll Peddler 기획서](https://www.notion.so/Scroll-Peddler-222428b239a08093aca9d4930d6137d2)를 참고하세요.
 

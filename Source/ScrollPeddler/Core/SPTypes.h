@@ -40,6 +40,20 @@ enum class ESPSessionPhase : uint8
 	SettlementCommitted
 };
 
+/** Owning-client-safe outcome of an authoritative world-pickup request. */
+UENUM(BlueprintType)
+enum class ESPPickupResultCode : uint8
+{
+	Success,
+	InvalidRequest,
+	OutOfRange,
+	InventoryFull,
+	Unavailable,
+	Obstructed,
+	Contested,
+	ServerError
+};
+
 USTRUCT(BlueprintType)
 struct SCROLLPEDDLER_API FSPScrollInstance
 {

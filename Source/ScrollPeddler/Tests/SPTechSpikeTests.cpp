@@ -2,11 +2,23 @@
 
 #include "Misc/AutomationTest.h"
 
+#include "Components/BoxComponent.h"
+#include "Components/CapsuleComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Core/SPTypes.h"
+#include "Camera/CameraComponent.h"
 #include "Data/SPScrollDefinition.h"
 #include "Data/SPScrollEngravingDefinition.h"
 #include "Engine/AssetManager.h"
+#include "Engine/StaticMesh.h"
+#include "Game/SPGameMode.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "GameFramework/SpringArmComponent.h"
 #include "Persistence/SPSaveGame.h"
+#include "Player/SPCharacter.h"
+#include "UI/SPHUD.h"
+#include "World/SPScrollPickup.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FSPScrollAxesRemainIndependentTest,
@@ -72,6 +84,141 @@ bool FSPScrollDataAssetCompositionTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("The spike family exposes exactly two engravings"), Scroll->AllowedEngravings.Num(), 2);
 	TestTrue(TEXT("Amplified is allowed"), Scroll->AllowsEngraving(Amplified));
 	TestTrue(TEXT("Stable is allowed"), Scroll->AllowsEngraving(Stable));
+	TestFalse(TEXT("The family defines pickup presentation art"), Scroll->PickupMesh.IsNull());
+	TestEqual(TEXT("The family uses the shared test-blockout presentation"),
+		Scroll->PickupMesh.ToSoftObjectPath().ToString(),
+		FString(TEXT("/Game/Art/TestAssets/Props/Scrolls/ScrollPickup/SM_ScrollPickup_TestBlockout.SM_ScrollPickup_TestBlockout")));
+	TestNotNull(TEXT("The pickup presentation mesh is loadable"), Scroll->PickupMesh.LoadSynchronous());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FSPScrollPickupComponentContractTest,
+	"ScrollPeddler.World.ScrollPickupComponentContract",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FSPScrollPickupComponentContractTest::RunTest(const FString& Parameters)
+{
+	const ASPScrollPickup* PickupCDO = GetDefault<ASPScrollPickup>();
+	const UBoxComponent* InteractionBounds = Cast<UBoxComponent>(PickupCDO->GetRootComponent());
+	const UStaticMeshComponent* PickupVisual = PickupCDO->FindComponentByClass<UStaticMeshComponent>();
+
+	TestNotNull(TEXT("Interaction bounds are the pickup root"), InteractionBounds);
+	TestNotNull(TEXT("Pickup visual is a separate static mesh component"), PickupVisual);
+	if (!InteractionBounds || !PickupVisual)
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("Interaction bounds use query-only collision"),
+		InteractionBounds->GetCollisionEnabled(), ECollisionEnabled::QueryOnly);
+	TestEqual(TEXT("Interaction bounds are world-dynamic"),
+		InteractionBounds->GetCollisionObjectType(), ECC_WorldDynamic);
+	TestEqual(TEXT("Visibility traces hit the interaction bounds"),
+		InteractionBounds->GetCollisionResponseToChannel(ECC_Visibility), ECR_Block);
+	TestEqual(TEXT("Pawn collision preserves the overlap policy"),
+		InteractionBounds->GetCollisionResponseToChannel(ECC_Pawn), ECR_Overlap);
+	TestFalse(TEXT("Interaction bounds do not generate overlap events"),
+		InteractionBounds->GetGenerateOverlapEvents());
+	TestTrue(TEXT("Interaction bounds match the scroll pickup envelope"),
+		InteractionBounds->GetUnscaledBoxExtent().Equals(FVector(26.0f, 10.0f, 10.0f)));
+	TestEqual(TEXT("Pickup art never participates in collision"),
+		PickupVisual->GetCollisionEnabled(), ECollisionEnabled::NoCollision);
+	TestTrue(TEXT("Pickup art is attached below the interaction bounds"),
+		PickupVisual->GetAttachParent() == InteractionBounds);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FSPFirstPersonPresentationContractTest,
+	"ScrollPeddler.Player.FirstPersonPresentationContract",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FSPFirstPersonPresentationContractTest::RunTest(const FString& Parameters)
+{
+	const ASPCharacter* CharacterCDO = GetDefault<ASPCharacter>();
+	const UCameraComponent* Camera = CharacterCDO->GetFirstPersonCamera();
+	const USkeletalMeshComponent* Hands = CharacterCDO->GetFirstPersonHands();
+	const UStaticMeshComponent* RemoteBody = CharacterCDO->GetRemoteBodyMesh();
+	const UCharacterMovementComponent* Movement = CharacterCDO->GetCharacterMovement();
+
+	TestNotNull(TEXT("First-person camera exists"), Camera);
+	TestNotNull(TEXT("First-person hands slot exists"), Hands);
+	TestNotNull(TEXT("Remote body presentation exists"), RemoteBody);
+	TestNotNull(TEXT("Character movement exists"), Movement);
+	TestNull(TEXT("Third-person spring arm is removed"),
+		CharacterCDO->FindComponentByClass<USpringArmComponent>());
+	if (!Camera || !Hands || !RemoteBody || !Movement)
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("Eye height is 64 cm"), CharacterCDO->BaseEyeHeight, 64.0f);
+	TestTrue(TEXT("Character yaw follows the controller"), CharacterCDO->bUseControllerRotationYaw);
+	TestFalse(TEXT("Movement does not rotate toward velocity"), Movement->bOrientRotationToMovement);
+	TestTrue(TEXT("Camera is attached directly to the capsule"),
+		Camera->GetAttachParent() == CharacterCDO->GetCapsuleComponent());
+	TestEqual(TEXT("Camera field of view is 90 degrees"), Camera->FieldOfView, 90.0f);
+	TestTrue(TEXT("Camera consumes pawn control rotation"), Camera->bUsePawnControlRotation);
+
+	TestTrue(TEXT("Hands attach below the camera"), Hands->GetAttachParent() == Camera);
+	TestNull(TEXT("Hands intentionally start without an art mesh"), Hands->GetSkeletalMeshAsset());
+	TestTrue(TEXT("Hands render only for their owning player"), Hands->bOnlyOwnerSee);
+	TestFalse(TEXT("Hands do not hide from their owner"), Hands->bOwnerNoSee);
+	TestEqual(TEXT("Hands never participate in collision"),
+		Hands->GetCollisionEnabled(), ECollisionEnabled::NoCollision);
+	TestFalse(TEXT("Hands do not cast shadows"), Hands->CastShadow);
+	TestFalse(TEXT("Hands component does not replicate"), Hands->GetIsReplicated());
+
+	TestTrue(TEXT("Remote body hides from its owner"), RemoteBody->bOwnerNoSee);
+	TestFalse(TEXT("Remote body is not owner-only"), RemoteBody->bOnlyOwnerSee);
+	TestEqual(TEXT("Remote body never participates in collision"),
+		RemoteBody->GetCollisionEnabled(), ECollisionEnabled::NoCollision);
+	TestFalse(TEXT("Remote body component does not replicate"), RemoteBody->GetIsReplicated());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FSPPickupHUDContractTest,
+	"ScrollPeddler.UI.PickupFeedbackContract",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FSPPickupHUDContractTest::RunTest(const FString& Parameters)
+{
+	const ASPGameMode* GameModeCDO = GetDefault<ASPGameMode>();
+	TestTrue(TEXT("Game mode installs the pickup HUD"), GameModeCDO->HUDClass == ASPHUD::StaticClass());
+
+	const ESPPickupResultCode ResultCodes[] =
+	{
+		ESPPickupResultCode::Success,
+		ESPPickupResultCode::InvalidRequest,
+		ESPPickupResultCode::OutOfRange,
+		ESPPickupResultCode::InventoryFull,
+		ESPPickupResultCode::Unavailable,
+		ESPPickupResultCode::Obstructed,
+		ESPPickupResultCode::Contested,
+		ESPPickupResultCode::ServerError
+	};
+	for (const ESPPickupResultCode ResultCode : ResultCodes)
+	{
+		TestFalse(
+			*FString::Printf(TEXT("Result %s has visible HUD copy"),
+				*StaticEnum<ESPPickupResultCode>()->GetNameStringByValue(static_cast<int64>(ResultCode))),
+			ASPHUD::GetPickupResultMessage(ResultCode).IsEmpty());
+	}
+
+	TestEqual(TEXT("Success copy is stable"),
+		ASPHUD::GetPickupResultMessage(ESPPickupResultCode::Success), FString(TEXT("PICKED UP")));
+	TestEqual(TEXT("Obstruction copy is stable"),
+		ASPHUD::GetPickupResultMessage(ESPPickupResultCode::Obstructed), FString(TEXT("BLOCKED")));
+	TestEqual(TEXT("Contested pickup copy is stable"),
+		ASPHUD::GetPickupResultMessage(ESPPickupResultCode::Contested), FString(TEXT("ALREADY CLAIMED")));
+	TestTrue(TEXT("Success uses a distinct green result color"),
+		ASPHUD::GetPickupResultColor(ESPPickupResultCode::Success).G >
+		ASPHUD::GetPickupResultColor(ESPPickupResultCode::Success).R);
+	TestTrue(TEXT("Rejections use a distinct red result color"),
+		ASPHUD::GetPickupResultColor(ESPPickupResultCode::ServerError).R >
+		ASPHUD::GetPickupResultColor(ESPPickupResultCode::ServerError).G);
 	return true;
 }
 

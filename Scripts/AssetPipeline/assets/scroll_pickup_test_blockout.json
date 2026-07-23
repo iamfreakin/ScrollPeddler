@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "assetId": "scroll_pickup_test_blockout",
+  "pipeline": {
+    "blenderVersion": "5.2.0",
+    "unitSystem": "METRIC",
+    "unitScale": 1.0
+  },
+  "paths": {
+    "sourceBlend": "SourceAssets/TestAssets/Props/Scrolls/ScrollPickup/ScrollPickup_TestBlockout.blend",
+    "fbx": "SourceAssets/TestAssets/Props/Scrolls/ScrollPickup/Exports/SM_ScrollPickup_TestBlockout.fbx",
+    "report": "SourceAssets/TestAssets/Props/Scrolls/ScrollPickup/Exports/SM_ScrollPickup_TestBlockout.export.json"
+  },
+  "objects": {
+    "root": "SP_ScrollPickup_TestBlockout_ROOT",
+    "render": "SM_ScrollPickup_TestBlockout",
+    "collision": {
+      "source": "SP_TestInteractionBounds_PREVIEW",
+      "export": "UCX_SM_ScrollPickup_TestBlockout_00"
+    },
+    "socket": {
+      "source": "SP_TestPickupPivot",
+      "export": "SOCKET_SM_ScrollPickup_TestBlockout_00"
+    }
+  },
+  "materials": {
+    "Paper": [
+      "Parchment",
+      "Edge"
+    ],
+    "Binding": [
+      "Band",
+      "Ribbon"
+    ],
+    "Seal": [
+      "Seal"
+    ],
+    "Rune": [
+      "Glow"
+    ]
+  },
+  "bounds": {
+    "expectedDimensionsCm": [
+      48.8,
+      16.52,
+      17.9
+    ],
+    "toleranceCm": 1.0
+  },
+  "unreal": {
+    "destination": "/Game/Art/TestAssets/Props/Scrolls/ScrollPickup",
+    "dataAsset": "/Game/Data/Scrolls/DA_Scroll_VeilOfSilence",
+    "import": {
+      "materials": false,
+      "textures": false,
+      "autoCollision": false,
+      "nanite": false
+    }
+  }
+}

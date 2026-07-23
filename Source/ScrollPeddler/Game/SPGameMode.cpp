@@ -11,6 +11,7 @@
 #include "GameFramework/PlayerStart.h"
 #include "Kismet/GameplayStatics.h"
 #include "Player/SPCharacter.h"
+#include "UI/SPHUD.h"
 #include "UObject/ConstructorHelpers.h"
 #include "World/SPExtractionZone.h"
 #include "World/SPGrayboxBlock.h"
@@ -37,6 +38,7 @@ ASPGameMode::ASPGameMode()
 	PlayerControllerClass = ASPPlayerController::StaticClass();
 	PlayerStateClass = ASPPlayerState::StaticClass();
 	GameStateClass = ASPGameState::StaticClass();
+	HUDClass = ASPHUD::StaticClass();
 	bUseSeamlessTravel = false;
 
 	static ConstructorHelpers::FObjectFinder<USPScrollDefinition> ScrollDefinition(
