@@ -15,8 +15,8 @@
 
 namespace
 {
-	const FName PickupBundleName(TEXT("Pickup"));
-	const FVector FallbackVisualScale(0.25f);
+	const FName WorldItemPickupBundleName(TEXT("Pickup"));
+	const FVector WorldItemFallbackVisualScale(0.25f);
 }
 
 FPrimaryAssetType SPGetWorldItemPickupDefinitionType(const ESPItemKind Kind)
@@ -285,7 +285,7 @@ ASPWorldItem::ASPWorldItem()
 	PickupVisual->SetCollisionResponseToAllChannels(ECR_Ignore);
 	PickupVisual->SetGenerateOverlapEvents(false);
 	PickupVisual->SetCanEverAffectNavigation(false);
-	PickupVisual->SetRelativeScale3D(FallbackVisualScale);
+	PickupVisual->SetRelativeScale3D(WorldItemFallbackVisualScale);
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
 	if (CubeMesh.Succeeded())
@@ -611,7 +611,7 @@ void ASPWorldItem::RequestPickupVisual()
 		return;
 	}
 
-	const TArray<FName> BundlesToLoad{ PickupBundleName };
+	const TArray<FName> BundlesToLoad{ WorldItemPickupBundleName };
 	FAssetManagerLoadParams LoadParams;
 	LoadParams.OnComplete = FStreamableDelegateWithHandle::CreateUObject(
 		this,
@@ -745,7 +745,7 @@ void ASPWorldItem::CancelPickupVisualLoad()
 void ASPWorldItem::ApplyFallbackVisual()
 {
 	PickupVisual->SetStaticMesh(FallbackVisualMesh);
-	PickupVisual->SetRelativeScale3D(FallbackVisualScale);
+	PickupVisual->SetRelativeScale3D(WorldItemFallbackVisualScale);
 }
 
 void ASPWorldItem::LogVisualFallback(
