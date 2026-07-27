@@ -298,20 +298,29 @@ The recorded package smokes use raw IP with `-nosteam`. They do not validate
 Steam discovery, Steam connect strings, platform invite acceptance, NAT
 behavior, or voice transport.
 
+Those full automation and packaged smoke records predate the follow-up run
+phase guard and dropped-item presentation fixes. The follow-up code passes UHT
+and C++/Unity compilation, but a linked DLL, automation, and package-smoke rerun
+remain pending until the open editor releases the module DLL.
+
 ## Current limits
 
 - Manual two-player Listen Server PIE confirmed bidirectional movement,
   stamina, replicated pickup removal, hand/bag swaps, drop and re-pickup, and
   single scroll consumption. The first-person hands component still has no
   skeletal mesh, so no hands are visible.
-- Dropped scrolls are respawned as generic `ASPWorldItem` actors. That actor
-  currently keeps its cube fallback instead of resolving the scroll
-  definition's pickup mesh.
-- Pickup, scroll use, and extraction are currently accepted while the run is
-  still `Preparing`. If every player extracts without first issuing
-  `SPReady true`, extraction reaches the full party count but Resolution and
-  settlement do not begin. Authority validation must reject these actions
-  before `Expedition`.
+- The same manual pass exposed two defects that now have code fixes awaiting a
+  fresh linked-DLL PIE pass: dropped `ASPWorldItem` actors resolve their
+  definition's `Pickup` mesh bundle instead of always keeping the cube
+  fallback, and pickup/use/extraction now require an active participant in
+  `Expedition` or `Collapse`.
+- Large cargo remains hand-only, cannot use the bag route, and disables sprint
+  while carried. These constraints have automated policy coverage but were not
+  manually rechecked in the two-player pass.
+- Same-item contention does not require simultaneous keyboard input on one PC:
+  `-SPAutoContestedPickup` keeps the claimed actor addressable long enough for
+  a second server request, and the recorded packaged smoke observed the
+  authoritative rejection path.
 - Steam lobby create/find/join/Quick Play and friend-invite acceptance are
   implemented but have not been validated with separate live Steam accounts.
 - `V` push-to-talk and mute/unmute are wired to the legacy voice path, but live

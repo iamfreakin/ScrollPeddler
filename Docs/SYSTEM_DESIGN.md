@@ -248,13 +248,13 @@ Workshop은 다음을 원자적 캠페인 트랜잭션으로 계산한다.
 
 자동화 테스트는 인벤토리 스택·라우팅·리비전, claim token과 rollback, 상호작용 replay, 6계열 resolver와 요청 ID 독립 오작동, 장비 위조·내구도, 파티 준비·투표·채팅·강퇴 원장 정리, 계약 중복 증거, 제작 원자성, 캠페인 3슬롯·저장 rollback, 런 상태·절대 출혈 기한·소음, OSS 세션 등록명, 위협 예산·감지, 던전 결정성·토폴로지를 다룬다.
 
-가장 최근 전체 보고서 `Saved/AutomationReports/VerticalSlice-20260727-AuthorityVerified`는 총 65개 중 64개 clean success, 의도한 잘못된 런 단계 거부 경고를 포함한 success 1개, 실패·미실행 0개다. 같은 최종 코드로 Win64 Development Editor와 Game 빌드, `TechSpike` cook·stage·pak·IoStore·archive를 통과했다. 창 모드 `-nosteam` 패키지 2·4프로세스 smoke도 모든 프로세스가 상태 0으로 종료했고, 각각 2·4인 탈출과 호스트 캠페인 정산 1회를 확인했다. 이 검증은 실제 Steam 계정 간 로비·초대·음성을 대체하지 않는다.
+가장 최근 전체 보고서 `Saved/AutomationReports/VerticalSlice-20260727-AuthorityVerified`는 총 65개 중 64개 clean success, 의도한 잘못된 런 단계 거부 경고를 포함한 success 1개, 실패·미실행 0개다. 같은 기준 코드로 Win64 Development Editor와 Game 빌드, `TechSpike` cook·stage·pak·IoStore·archive를 통과했다. 창 모드 `-nosteam` 패키지 2·4프로세스 smoke도 모든 프로세스가 상태 0으로 종료했고, 각각 2·4인 탈출과 호스트 캠페인 정산 1회를 확인했다. 이 기록은 후속 `Preparing` 권위 가드와 드롭 메시 수정 이전 기준이다. 후속 코드는 UHT와 C++/Unity 컴파일을 통과했지만 에디터의 모듈 DLL 점유 때문에 최종 링크·자동화·패키지 smoke 재실행이 남아 있다. 이 검증은 실제 Steam 계정 간 로비·초대·음성을 대체하지 않는다.
 
-2026-07-27의 수동 2인 Listen Server PIE에서는 양방향 이동, 질주 스태미나, 월드 아이템 제거 복제, 손 1칸·가방 4칸 HUD, 숫자 키 교환, 버리기·재획득, 스크롤 1회 소비와 양쪽 제거를 확인했다. 동시에 다음 표현·흐름 결함도 확인했다.
+2026-07-27의 수동 2인 Listen Server PIE에서는 양방향 이동, 질주 스태미나, 월드 아이템 제거 복제, 손 1칸·가방 4칸 HUD, 숫자 키 교환, 버리기·재획득, 스크롤 1회 소비와 양쪽 제거를 확인했다. 대형 화물의 손 비우기·가방 이동 불가·질주 불가 규칙은 자동화 테스트가 담당하며 이 수동 회차에서는 다시 확인하지 않았다. 같은 아이템 동시 획득은 한 PC의 동시 키 입력 대신 `-SPAutoContestedPickup` 패키지 smoke가 서버의 단일 claim과 두 번째 요청 거부를 재현한다.
 
 - `FirstPersonHands` 컴포넌트에는 skeletal mesh가 없어 실제 1인칭 손이 보이지 않는다.
-- 버린 스크롤은 범용 `ASPWorldItem`으로 다시 생성되고 정의의 픽업 메시를 해석하지 않아 큐브로 표시된다.
-- 파티가 준비되지 않아 런이 `Preparing`인 상태에서도 획득·사용·탈출이 허용된다. 이 상태에서 전원이 탈출하면 추출 수는 2/2가 되지만 Preparing 가드 때문에 Resolution과 정산이 시작되지 않는다.
+- 버린 스크롤이 범용 `ASPWorldItem`의 큐브로 표시되던 문제는 정의의 `Pickup` 번들 메시를 비동기로 해석하도록 수정했다. 새 DLL을 링크한 뒤 PIE 재확인이 남아 있다.
+- `Preparing`에서도 획득·사용·탈출이 허용되어 정산이 교착되던 문제는 `Expedition`·`Collapse`의 Active 참가자만 허용하도록 서버 경계를 수정했다. 새 DLL을 링크한 뒤 준비 전 거부와 준비 후 정상 경로를 함께 재확인해야 한다.
 
 ### 통과해야 할 기술 게이트 순서
 
