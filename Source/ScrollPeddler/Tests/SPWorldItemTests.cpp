@@ -4,6 +4,8 @@
 
 #include "Components/BoxComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Data/SPItemDefinition.h"
+#include "Data/SPScrollDefinition.h"
 #include "World/SPWorldItem.h"
 
 #include <limits>
@@ -16,6 +18,28 @@ FGuid MakeGuid(const TCHAR* Value)
 	verify(FGuid::Parse(Value, Guid));
 	return Guid;
 }
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FSPWorldItemPickupDefinitionRoutingTest,
+	"ScrollPeddler.WorldItem.PickupDefinitionRouting",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FSPWorldItemPickupDefinitionRoutingTest::RunTest(const FString& Parameters)
+{
+	TestEqual(TEXT("Scroll presentation comes from scroll definitions"),
+		SPGetWorldItemPickupDefinitionType(ESPItemKind::Scroll),
+		USPScrollDefinition::PrimaryAssetType);
+	TestEqual(TEXT("Material presentation comes from generic item definitions"),
+		SPGetWorldItemPickupDefinitionType(ESPItemKind::Material),
+		USPItemDefinition::PrimaryAssetType);
+	TestEqual(TEXT("Equipment presentation comes from generic item definitions"),
+		SPGetWorldItemPickupDefinitionType(ESPItemKind::Equipment),
+		USPItemDefinition::PrimaryAssetType);
+	TestEqual(TEXT("Large cargo presentation comes from generic item definitions"),
+		SPGetWorldItemPickupDefinitionType(ESPItemKind::LargeCargo),
+		USPItemDefinition::PrimaryAssetType);
+	return true;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -202,6 +226,10 @@ bool FSPWorldItemComponentContractTest::RunTest(const FString& Parameters)
 		PickupVisual->GetCollisionEnabled(), ECollisionEnabled::NoCollision);
 	TestTrue(TEXT("Presentation mesh is attached under interaction bounds"),
 		PickupVisual->GetAttachParent() == InteractionBounds);
+	TestNotNull(TEXT("World items retain a fallback mesh while presentation loads"),
+		PickupVisual->GetStaticMesh().Get());
+	TestTrue(TEXT("Fallback presentation keeps the compact graybox scale"),
+		PickupVisual->GetRelativeScale3D().Equals(FVector(0.25f)));
 	return true;
 }
 

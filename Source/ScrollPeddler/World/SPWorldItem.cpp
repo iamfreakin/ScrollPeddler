@@ -2,12 +2,29 @@
 
 #include "Components/BoxComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Data/SPItemDefinition.h"
+#include "Data/SPScrollDefinition.h"
+#include "Engine/AssetManager.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/StreamableManager.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "Net/UnrealNetwork.h"
 #include "ScrollPeddler.h"
 #include "UObject/ConstructorHelpers.h"
+
+namespace
+{
+	const FName PickupBundleName(TEXT("Pickup"));
+	const FVector FallbackVisualScale(0.25f);
+}
+
+FPrimaryAssetType SPGetWorldItemPickupDefinitionType(const ESPItemKind Kind)
+{
+	return Kind == ESPItemKind::Scroll
+		? USPScrollDefinition::PrimaryAssetType
+		: USPItemDefinition::PrimaryAssetType;
+}
 
 ESPDropPlacementResult SPValidateDropPlacement(
 	const FVector& SourceLocation,
@@ -268,12 +285,13 @@ ASPWorldItem::ASPWorldItem()
 	PickupVisual->SetCollisionResponseToAllChannels(ECR_Ignore);
 	PickupVisual->SetGenerateOverlapEvents(false);
 	PickupVisual->SetCanEverAffectNavigation(false);
-	PickupVisual->SetRelativeScale3D(FVector(0.25f));
+	PickupVisual->SetRelativeScale3D(FallbackVisualScale);
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
 	if (CubeMesh.Succeeded())
 	{
-		PickupVisual->SetStaticMesh(CubeMesh.Object);
+		FallbackVisualMesh = CubeMesh.Object;
+		PickupVisual->SetStaticMesh(FallbackVisualMesh);
 	}
 
 	SetActorHiddenInGame(true);
@@ -287,6 +305,12 @@ void ASPWorldItem::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 	DOREPLIFETIME(ASPWorldItem, ClaimState);
 }
 
+void ASPWorldItem::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	CancelPickupVisualLoad();
+	Super::EndPlay(EndPlayReason);
+}
+
 bool ASPWorldItem::InitializeItem(const FSPItemInstance& InItemInstance)
 {
 	if (!HasAuthority()
@@ -298,6 +322,7 @@ bool ASPWorldItem::InitializeItem(const FSPItemInstance& InItemInstance)
 	}
 
 	ItemInstance = InItemInstance;
+	RequestPickupVisual();
 	ApplyLifecyclePresentation();
 	NotifyStateChanged(TEXT("INITIALIZED"));
 	return true;
@@ -384,6 +409,7 @@ ESPInteractionResultCode ASPWorldItem::CommitClaim(
 	if (Result == ESPInteractionResultCode::Success
 		&& ClaimState.Revision != PreviousRevision)
 	{
+		CancelPickupVisualLoad();
 		ApplyLifecyclePresentation();
 		NotifyStateChanged(TEXT("COMMITTED"));
 	}
@@ -530,12 +556,210 @@ bool ASPWorldItem::RequestPaperEaterCorruption_Implementation(
 
 void ASPWorldItem::OnRep_ItemInstance()
 {
+	RequestPickupVisual();
 	ApplyLifecyclePresentation();
 }
 
 void ASPWorldItem::OnRep_ClaimState()
 {
+	if (ClaimState.Lifecycle == ESPWorldItemLifecycleState::Committed)
+	{
+		CancelPickupVisualLoad();
+	}
 	ApplyLifecyclePresentation();
+}
+
+void ASPWorldItem::RequestPickupVisual()
+{
+	CancelPickupVisualLoad();
+	ApplyFallbackVisual();
+
+	if (ClaimState.Lifecycle == ESPWorldItemLifecycleState::Committed)
+	{
+		return;
+	}
+	if (!ItemInstance.IsValid())
+	{
+		LogVisualFallback(
+			TEXT("Item instance is invalid"),
+			ItemInstance.DefinitionId,
+			ItemInstance.Kind);
+		return;
+	}
+
+	const FPrimaryAssetId RequestedDefinitionId = ItemInstance.DefinitionId;
+	const FGuid RequestedInstanceId = ItemInstance.InstanceId;
+	const ESPItemKind RequestedKind = ItemInstance.Kind;
+	const uint32 RequestId = PickupVisualRequestId;
+	if (RequestedDefinitionId.PrimaryAssetType
+		!= SPGetWorldItemPickupDefinitionType(RequestedKind))
+	{
+		LogVisualFallback(
+			TEXT("Primary asset type does not match item kind"),
+			RequestedDefinitionId,
+			RequestedKind);
+		return;
+	}
+
+	UAssetManager& AssetManager = UAssetManager::Get();
+	if (!AssetManager.GetPrimaryAssetPath(RequestedDefinitionId).IsValid())
+	{
+		LogVisualFallback(
+			TEXT("Primary asset id is not registered"),
+			RequestedDefinitionId,
+			RequestedKind);
+		return;
+	}
+
+	const TArray<FName> BundlesToLoad{ PickupBundleName };
+	FAssetManagerLoadParams LoadParams;
+	LoadParams.OnComplete = FStreamableDelegateWithHandle::CreateUObject(
+		this,
+		&ASPWorldItem::HandlePickupVisualLoaded,
+		RequestId,
+		RequestedInstanceId,
+		RequestedDefinitionId,
+		RequestedKind);
+
+	TSharedPtr<FStreamableHandle> NewHandle = AssetManager.PreloadPrimaryAssets(
+		TArray<FPrimaryAssetId>{ RequestedDefinitionId },
+		BundlesToLoad,
+		false,
+		MoveTemp(LoadParams));
+	// The callback owns the completed handle long enough for PickupVisual to
+	// establish a hard mesh reference. Retain only pending work for cancellation.
+	if (NewHandle.IsValid() && !NewHandle->HasLoadCompleted())
+	{
+		PickupVisualLoadHandle = MoveTemp(NewHandle);
+	}
+}
+
+void ASPWorldItem::HandlePickupVisualLoaded(
+	TSharedPtr<FStreamableHandle> CompletedHandle,
+	const uint32 RequestId,
+	const FGuid RequestedInstanceId,
+	const FPrimaryAssetId RequestedDefinitionId,
+	const ESPItemKind RequestedKind)
+{
+	if (RequestId != PickupVisualRequestId)
+	{
+		return;
+	}
+
+	if (PickupVisualLoadHandle == CompletedHandle)
+	{
+		PickupVisualLoadHandle.Reset();
+	}
+	if (!CompletedHandle.IsValid())
+	{
+		ApplyFallbackVisual();
+		LogVisualFallback(
+			TEXT("Pickup preload completed without a valid handle"),
+			RequestedDefinitionId,
+			RequestedKind);
+		return;
+	}
+	if (ClaimState.Lifecycle == ESPWorldItemLifecycleState::Committed
+		|| !ItemInstance.IsValid()
+		|| ItemInstance.InstanceId != RequestedInstanceId
+		|| ItemInstance.DefinitionId != RequestedDefinitionId
+		|| ItemInstance.Kind != RequestedKind)
+	{
+		return;
+	}
+
+	UStaticMesh* LoadedMesh = nullptr;
+	if (RequestedKind == ESPItemKind::Scroll)
+	{
+		const USPScrollDefinition* Definition =
+			UAssetManager::Get().GetPrimaryAssetObject<USPScrollDefinition>(
+				RequestedDefinitionId);
+		if (!Definition)
+		{
+			ApplyFallbackVisual();
+			LogVisualFallback(
+				TEXT("Primary asset did not load as a scroll definition"),
+				RequestedDefinitionId,
+				RequestedKind);
+			return;
+		}
+		LoadedMesh = Definition->PickupMesh.Get();
+	}
+	else
+	{
+		const USPItemDefinition* Definition =
+			UAssetManager::Get().GetPrimaryAssetObject<USPItemDefinition>(
+				RequestedDefinitionId);
+		if (!Definition)
+		{
+			ApplyFallbackVisual();
+			LogVisualFallback(
+				TEXT("Primary asset did not load as an item definition"),
+				RequestedDefinitionId,
+				RequestedKind);
+			return;
+		}
+		if (Definition->Kind != RequestedKind)
+		{
+			ApplyFallbackVisual();
+			LogVisualFallback(
+				TEXT("Item definition kind does not match the instance"),
+				RequestedDefinitionId,
+				RequestedKind);
+			return;
+		}
+		LoadedMesh = Definition->PickupMesh.Get();
+	}
+
+	if (!LoadedMesh)
+	{
+		ApplyFallbackVisual();
+		LogVisualFallback(
+			TEXT("Pickup bundle completed without a loadable mesh"),
+			RequestedDefinitionId,
+			RequestedKind);
+		return;
+	}
+
+	PickupVisual->SetStaticMesh(LoadedMesh);
+	PickupVisual->SetRelativeScale3D(FVector::OneVector);
+	UE_LOG(LogScrollPeddler, Log,
+		TEXT("[SP_WORLD_ITEM_VISUAL_APPLIED] Item=%s Definition=%s Kind=%s Mesh=%s"),
+		*GetNameSafe(this),
+		*RequestedDefinitionId.ToString(),
+		*StaticEnum<ESPItemKind>()->GetNameStringByValue(
+			static_cast<int64>(RequestedKind)),
+		*GetNameSafe(LoadedMesh));
+}
+
+void ASPWorldItem::CancelPickupVisualLoad()
+{
+	++PickupVisualRequestId;
+	if (PickupVisualLoadHandle.IsValid())
+	{
+		PickupVisualLoadHandle->CancelHandle();
+		PickupVisualLoadHandle.Reset();
+	}
+}
+
+void ASPWorldItem::ApplyFallbackVisual()
+{
+	PickupVisual->SetStaticMesh(FallbackVisualMesh);
+	PickupVisual->SetRelativeScale3D(FallbackVisualScale);
+}
+
+void ASPWorldItem::LogVisualFallback(
+	const TCHAR* Reason,
+	const FPrimaryAssetId& DefinitionId,
+	const ESPItemKind Kind) const
+{
+	UE_LOG(LogScrollPeddler, Warning,
+		TEXT("[SP_WORLD_ITEM_VISUAL_FALLBACK] Item=%s Definition=%s Kind=%s Reason=%s"),
+		*GetNameSafe(this),
+		*DefinitionId.ToString(),
+		*StaticEnum<ESPItemKind>()->GetNameStringByValue(
+			static_cast<int64>(Kind)),
+		Reason);
 }
 
 ESPInteractionResultCode ASPWorldItem::ValidatePickupRequest(

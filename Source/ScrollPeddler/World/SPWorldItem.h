@@ -9,7 +9,9 @@
 
 class APawn;
 class UBoxComponent;
+class UStaticMesh;
 class UStaticMeshComponent;
+struct FStreamableHandle;
 
 UENUM(BlueprintType)
 enum class ESPWorldItemLifecycleState : uint8
@@ -43,6 +45,10 @@ SCROLLPEDDLER_API ESPDropPlacementResult SPValidateDropPlacement(
 	const FTransform& ProposedTransform,
 	float MaxDropDistance,
 	bool bCollisionAllowsPlacement);
+
+/** Selects the data-asset family that owns world presentation for an item kind. */
+SCROLLPEDDLER_API FPrimaryAssetType SPGetWorldItemPickupDefinitionType(
+	ESPItemKind Kind);
 
 /**
  * Token-bound claim state. Only Lifecycle and Revision replicate; claimant and
@@ -167,6 +173,9 @@ public:
 	virtual bool RequestPaperEaterCorruption_Implementation(
 		const FSPPaperCorruptionIntent& Intent) override;
 
+protected:
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
 private:
 	UFUNCTION()
 	void OnRep_ItemInstance();
@@ -180,6 +189,19 @@ private:
 		bool bAllowCurrentClaimantReplay) const;
 
 	bool RefreshAbandonedClaim();
+	void RequestPickupVisual();
+	void HandlePickupVisualLoaded(
+		TSharedPtr<FStreamableHandle> CompletedHandle,
+		uint32 RequestId,
+		FGuid RequestedInstanceId,
+		FPrimaryAssetId RequestedDefinitionId,
+		ESPItemKind RequestedKind);
+	void CancelPickupVisualLoad();
+	void ApplyFallbackVisual();
+	void LogVisualFallback(
+		const TCHAR* Reason,
+		const FPrimaryAssetId& DefinitionId,
+		ESPItemKind Kind) const;
 	void ApplyLifecyclePresentation();
 	void NotifyStateChanged(const TCHAR* Operation);
 
@@ -189,6 +211,9 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UStaticMeshComponent> PickupVisual;
 
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMesh> FallbackVisualMesh;
+
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, ReplicatedUsing = OnRep_ItemInstance, Category = "Item", meta = (AllowPrivateAccess = "true"))
 	FSPItemInstance ItemInstance;
 
@@ -196,6 +221,8 @@ private:
 	FSPWorldItemClaimState ClaimState;
 
 	TMap<FGuid, FString> ProcessedCorruptionRequests;
+	TSharedPtr<FStreamableHandle> PickupVisualLoadHandle;
+	uint32 PickupVisualRequestId = 0;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Interaction", meta = (AllowPrivateAccess = "true", ClampMin = "1.0"))
 	float MaxInteractionDistance = 250.0f;
