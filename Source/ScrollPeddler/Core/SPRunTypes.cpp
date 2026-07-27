@@ -95,3 +95,19 @@ bool SPCanAdvanceRunPhase(const ESPRunPhase Current, const ESPRunPhase Requested
 {
 	return static_cast<uint8>(Requested) >= static_cast<uint8>(Current);
 }
+
+bool SPAllowsFieldGameplayAction(const ESPRunPhase Phase)
+{
+	return Phase == ESPRunPhase::Expedition
+		|| Phase == ESPRunPhase::Collapse;
+}
+
+bool SPAllowsPlayerFieldGameplayAction(
+	const ESPRunPhase Phase,
+	const ESPParticipationState ParticipationState,
+	const ESPPlayerCondition PlayerCondition)
+{
+	return SPAllowsFieldGameplayAction(Phase)
+		&& ParticipationState == ESPParticipationState::Active
+		&& PlayerCondition != ESPPlayerCondition::Missing;
+}

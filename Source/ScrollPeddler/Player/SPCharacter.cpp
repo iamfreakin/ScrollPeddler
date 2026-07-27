@@ -5,6 +5,7 @@
 #include "Components/InputComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Core/SPRunTypes.h"
 #include "Data/SPScrollFamilyDefinition.h"
 #include "Data/SPScrollDefinition.h"
 #include "Data/SPScrollEngravingDefinition.h"
@@ -540,6 +541,11 @@ void ASPCharacter::ServerTryPickup_Implementation(ASPScrollPickup* Pickup, const
 		RejectPickupRequest(RequestId, ESPPickupResultCode::InvalidRequest, TEXT("InactivePlayerState"), Pickup);
 		return;
 	}
+	if (!CanPerformFieldGameplayAction())
+	{
+		RejectPickupRequest(RequestId, ESPPickupResultCode::InvalidRequest, TEXT("RunPhase"), Pickup);
+		return;
+	}
 	if (!IsValid(Pickup) || !Pickup->HasAuthority() || Pickup->GetWorld() != GetWorld())
 	{
 		RejectPickupRequest(RequestId, ESPPickupResultCode::InvalidRequest, TEXT("InvalidPickup"), Pickup);
@@ -697,6 +703,13 @@ void ASPCharacter::ServerTryPickupWorldItem_Implementation(
 			Inventory->GetInventoryRevision());
 		return;
 	}
+	if (!CanPerformFieldGameplayAction())
+	{
+		FinishRequest(
+			ESPInteractionResultCode::InvalidState,
+			Inventory->GetInventoryRevision());
+		return;
+	}
 
 	FGuid ClaimToken;
 	FSPItemInstance ItemSnapshot;
@@ -823,6 +836,18 @@ void ASPCharacter::ServerUseScroll_Implementation(
 		UE_LOG(LogScrollPeddler, Warning,
 			TEXT("[SP_SCROLL_USE_REJECTED] Player=%s Reason=InactivePlayerState"),
 			*GetNameSafe(this));
+		return;
+	}
+	if (!CanPerformFieldGameplayAction())
+	{
+		const ASPGameState* ScrollGameState =
+			GetWorld() ? GetWorld()->GetGameState<ASPGameState>() : nullptr;
+		UE_LOG(LogScrollPeddler, Warning,
+			TEXT("[SP_SCROLL_USE_REJECTED] Player=%s Reason=RunPhase Phase=%d"),
+			*GetNameSafe(this),
+			ScrollGameState
+				? static_cast<int32>(ScrollGameState->GetRunPhase())
+				: INDEX_NONE);
 		return;
 	}
 
@@ -1544,6 +1569,20 @@ bool ASPCharacter::CanRequestInteraction() const
 	return IsValid(ScrollPlayerState) && !ScrollPlayerState->IsExtracted();
 }
 
+bool ASPCharacter::CanPerformFieldGameplayAction() const
+{
+	const ASPGameState* ScrollGameState =
+		GetWorld() ? GetWorld()->GetGameState<ASPGameState>() : nullptr;
+	const ASPPlayerState* ScrollPlayerState =
+		GetPlayerState<ASPPlayerState>();
+	return ScrollGameState
+		&& ScrollPlayerState
+		&& SPAllowsPlayerFieldGameplayAction(
+			ScrollGameState->GetRunPhase(),
+			ScrollPlayerState->GetParticipationState(),
+			ScrollPlayerState->GetPlayerCondition());
+}
+
 bool ASPCharacter::HasValidOwningController() const
 {
 	return HasAuthority() && IsValid(Controller) && Controller->GetPawn() == this;
@@ -1901,7 +1940,12 @@ void ASPCharacter::CompleteSelfTreatment()
 ASPPlayerState* ASPCharacter::GetActiveScrollPlayerState() const
 {
 	ASPPlayerState* ScrollPlayerState = GetPlayerState<ASPPlayerState>();
-	return HasAuthority() && IsValid(ScrollPlayerState) && ScrollPlayerState->HasAuthority() && !ScrollPlayerState->IsExtracted()
+	return HasAuthority()
+		&& IsValid(ScrollPlayerState)
+		&& ScrollPlayerState->HasAuthority()
+		&& ScrollPlayerState->GetParticipationState()
+			== ESPParticipationState::Active
+		&& !ScrollPlayerState->IsRunTerminal()
 		? ScrollPlayerState
 		: nullptr;
 }

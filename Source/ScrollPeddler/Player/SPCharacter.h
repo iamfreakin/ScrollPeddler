@@ -167,6 +167,7 @@ private:
 		int32 ExpectedRevision,
 		FSPItemInstance& OutDroppedItem);
 	bool CanRequestInteraction() const;
+	bool CanPerformFieldGameplayAction() const;
 	bool HasValidOwningController() const;
 	bool HasLineOfSightToPickup(const ASPScrollPickup* Pickup) const;
 	bool CanSprint() const;

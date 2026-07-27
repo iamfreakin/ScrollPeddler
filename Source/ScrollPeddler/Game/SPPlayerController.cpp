@@ -5,6 +5,7 @@
 #include "Game/SPGameMode.h"
 #include "Game/SPGameState.h"
 #include "Game/SPPartyState.h"
+#include "Game/SPPlayerState.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Misc/CommandLine.h"
@@ -422,6 +423,20 @@ void ASPPlayerController::RunAutoSpikeStep()
 			break;
 		}
 		{
+			const ASPGameState* ScrollGameState =
+				World->GetGameState<ASPGameState>();
+			const ASPPlayerState* ScrollPlayerState =
+				ScrollCharacter->GetPlayerState<ASPPlayerState>();
+			if (!ScrollGameState
+				|| !ScrollPlayerState
+				|| !SPAllowsPlayerFieldGameplayAction(
+					ScrollGameState->GetRunPhase(),
+					ScrollPlayerState->GetParticipationState(),
+					ScrollPlayerState->GetPlayerCondition()))
+			{
+				break;
+			}
+
 			ASPScrollPickup* NearestPickup = nullptr;
 			float NearestDistanceSquared = TNumericLimits<float>::Max();
 			FString LowestInstanceKey;
@@ -430,7 +445,6 @@ void ASPPlayerController::RunAutoSpikeStep()
 				FParse::Param(FCommandLine::Get(), TEXT("SPAutoContestedPickup"));
 			if (bForceFirstContestedAttempt)
 			{
-				const ASPGameState* ScrollGameState = World->GetGameState<ASPGameState>();
 				const ESPSessionPhase SessionPhase = ScrollGameState
 					? ScrollGameState->GetSessionPhase()
 					: ESPSessionPhase::LobbyCreated;

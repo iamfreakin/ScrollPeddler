@@ -56,3 +56,12 @@ SCROLLPEDDLER_API bool SPCanTransitionParticipationState(
 
 /** Run phases are monotonic; abort paths may skip forward but never rewind. */
 SCROLLPEDDLER_API bool SPCanAdvanceRunPhase(ESPRunPhase Current, ESPRunPhase Requested);
+
+/** Field gameplay actions are valid only after launch and before resolution. */
+SCROLLPEDDLER_API bool SPAllowsFieldGameplayAction(ESPRunPhase Phase);
+
+/** Only active, non-missing participants may perform field gameplay actions. */
+SCROLLPEDDLER_API bool SPAllowsPlayerFieldGameplayAction(
+	ESPRunPhase Phase,
+	ESPParticipationState ParticipationState,
+	ESPPlayerCondition PlayerCondition);

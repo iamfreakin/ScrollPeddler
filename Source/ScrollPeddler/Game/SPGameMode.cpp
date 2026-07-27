@@ -1,5 +1,6 @@
 #include "Game/SPGameMode.h"
 
+#include "Core/SPRunTypes.h"
 #include "Core/SPTypes.h"
 #include "Game/SPContractEvaluator.h"
 #include "Data/SPScrollDefinition.h"
@@ -331,20 +332,45 @@ bool ASPGameMode::TryExtractCharacter(ASPCharacter* Character)
 	return ExtractionZone->TryExtract(Character);
 }
 
-void ASPGameMode::HandlePlayerReachedExtraction(ASPCharacter* Character)
+bool ASPGameMode::HandlePlayerReachedExtraction(ASPCharacter* Character)
 {
 	if (!HasAuthority() || bSettlementStarted || !IsValid(Character))
 	{
-		return;
+		return false;
 	}
 
-	ASPPlayerState* ScrollPlayerState = Character->GetPlayerState<ASPPlayerState>();
-	if (!ScrollPlayerState || ScrollPlayerState->IsExtracted())
+	ASPGameState* ScrollGameState = GetGameState<ASPGameState>();
+	ASPPlayerState* ScrollPlayerState =
+		Character->GetPlayerState<ASPPlayerState>();
+	if (!ScrollGameState
+		|| !ScrollPlayerState
+		|| !SPAllowsPlayerFieldGameplayAction(
+			ScrollGameState->GetRunPhase(),
+			ScrollPlayerState->GetParticipationState(),
+			ScrollPlayerState->GetPlayerCondition()))
 	{
-		return;
+		UE_LOG(LogSPGameMode, Warning,
+			TEXT("SP_SPIKE_EXTRACTION_REJECTED reason=field_state player=%s phase=%d participation=%d condition=%d"),
+			*GetNameSafe(Character->GetController()),
+			ScrollGameState
+				? static_cast<int32>(ScrollGameState->GetRunPhase())
+				: INDEX_NONE,
+			ScrollPlayerState
+				? static_cast<int32>(
+					ScrollPlayerState->GetParticipationState())
+				: INDEX_NONE,
+			ScrollPlayerState
+				? static_cast<int32>(
+					ScrollPlayerState->GetPlayerCondition())
+				: INDEX_NONE);
+		return false;
 	}
 
-	ScrollPlayerState->MarkExtracted();
+	if (!ScrollPlayerState->AuthorityMarkExtracted())
+	{
+		return false;
+	}
+
 	const FString* ExistingRosterKey =
 		ControllerRosterKeys.Find(Character->GetController());
 	const FString RosterKey = ExistingRosterKey
@@ -353,22 +379,17 @@ void ASPGameMode::HandlePlayerReachedExtraction(ASPCharacter* Character)
 	CaptureRunOutcome(RosterKey, ScrollPlayerState, Character, true);
 
 	int32 ExtractedPlayers = 0;
-	if (const ASPGameState* ScrollGameState = GetGameState<ASPGameState>())
+	for (const APlayerState* PlayerState : ScrollGameState->PlayerArray)
 	{
-		for (const APlayerState* PlayerState : ScrollGameState->PlayerArray)
-		{
-			const ASPPlayerState* Candidate = Cast<ASPPlayerState>(PlayerState);
-			ExtractedPlayers += Candidate && Candidate->IsExtracted() ? 1 : 0;
-		}
+		const ASPPlayerState* Candidate = Cast<ASPPlayerState>(PlayerState);
+		ExtractedPlayers += Candidate && Candidate->IsExtracted() ? 1 : 0;
 	}
 
-	if (ASPGameState* ScrollGameState = GetGameState<ASPGameState>())
-	{
-		ScrollGameState->AuthoritySetPhase(ESPSessionPhase::Extraction);
-		ScrollGameState->AuthoritySetExtractedPlayerCount(ExtractedPlayers);
-	}
+	ScrollGameState->AuthoritySetPhase(ESPSessionPhase::Extraction);
+	ScrollGameState->AuthoritySetExtractedPlayerCount(ExtractedPlayers);
 
 	RefreshRunRosterAndResolution();
+	return true;
 }
 
 void ASPGameMode::HandleSettlementAck(

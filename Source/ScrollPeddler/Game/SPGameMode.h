@@ -60,7 +60,7 @@ public:
 	bool TryExtractCharacter(ASPCharacter* Character);
 
 	/** Called only by ASPExtractionZone after its authority and distance checks pass. */
-	void HandlePlayerReachedExtraction(ASPCharacter* Character);
+	bool HandlePlayerReachedExtraction(ASPCharacter* Character);
 
 	/** Completes settlement only after each owning client verifies its local SaveGame write. */
 	void HandleSettlementAck(

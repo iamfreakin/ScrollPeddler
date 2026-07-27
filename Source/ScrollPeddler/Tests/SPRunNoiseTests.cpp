@@ -125,6 +125,31 @@ bool FSPRunTransitionPolicyTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Run phase cannot rewind"),
 		SPCanAdvanceRunPhase(
 			ESPRunPhase::Collapse, ESPRunPhase::Expedition));
+	TestFalse(TEXT("Preparing rejects field gameplay actions"),
+		SPAllowsFieldGameplayAction(ESPRunPhase::Preparing));
+	TestTrue(TEXT("Expedition accepts field gameplay actions"),
+		SPAllowsFieldGameplayAction(ESPRunPhase::Expedition));
+	TestTrue(TEXT("Collapse accepts field gameplay actions"),
+		SPAllowsFieldGameplayAction(ESPRunPhase::Collapse));
+	TestFalse(TEXT("Resolution rejects field gameplay actions"),
+		SPAllowsFieldGameplayAction(ESPRunPhase::Resolution));
+	TestFalse(TEXT("Settlement rejects field gameplay actions"),
+		SPAllowsFieldGameplayAction(ESPRunPhase::Settlement));
+	TestFalse(TEXT("Hub participants cannot perform field gameplay actions"),
+		SPAllowsPlayerFieldGameplayAction(
+			ESPRunPhase::Expedition,
+			ESPParticipationState::Hub,
+			ESPPlayerCondition::Normal));
+	TestTrue(TEXT("Active injured participants retain field gameplay access"),
+		SPAllowsPlayerFieldGameplayAction(
+			ESPRunPhase::Collapse,
+			ESPParticipationState::Active,
+			ESPPlayerCondition::Injured));
+	TestFalse(TEXT("Missing participants cannot perform field gameplay actions"),
+		SPAllowsPlayerFieldGameplayAction(
+			ESPRunPhase::Expedition,
+			ESPParticipationState::Active,
+			ESPPlayerCondition::Missing));
 	return true;
 }
 
@@ -211,6 +236,12 @@ bool FSPPlayerRunStateTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Missing player becomes spectator"),
 		MissingPlayerState->GetParticipationState(),
 		ESPParticipationState::Spectating);
+	AddExpectedError(
+		TEXT("SP_RUN_EXTRACTION_REJECTED"),
+		EAutomationExpectedErrorFlags::Contains,
+		1);
+	TestFalse(TEXT("Missing player cannot extract"),
+		MissingPlayerState->AuthorityMarkExtracted());
 	return true;
 }
 

@@ -80,8 +80,7 @@ bool ASPExtractionZone::TryExtract(ASPCharacter* Character)
 	UE_LOG(LogSPExtractionZone, Display,
 		TEXT("SP_SPIKE_EXTRACTION_VALIDATED player=%s distance=%.1f"),
 		*GetNameSafe(Character->GetController()), Distance);
-	GameMode->HandlePlayerReachedExtraction(Character);
-	return true;
+	return GameMode->HandlePlayerReachedExtraction(Character);
 }
 
 void ASPExtractionZone::OnExtractionOverlap(
