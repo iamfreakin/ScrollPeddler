@@ -8,11 +8,13 @@
 #include "Data/SPGrayboxThreatDefinition.h"
 #include "Data/SPItemDefinition.h"
 #include "Engine/AssetManager.h"
+#include "Engine/PlayerStartPIE.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Game/SPGameState.h"
 #include "Game/SPPartyState.h"
 #include "Game/SPPlayerController.h"
+#include "Game/SPPlayerStartPolicy.h"
 #include "Game/SPPlayerState.h"
 #include "GameFramework/GameSession.h"
 #include "GameFramework/PlayerStart.h"
@@ -190,17 +192,9 @@ void ASPGameMode::PostLogin(APlayerController* NewPlayer)
 
 	const FString RosterKey = ResolveRosterKey(NewPlayer);
 	ControllerRosterKeys.Add(NewPlayer, RosterKey);
-	RegisterPartyMember(NewPlayer, RosterKey);
 	if (IsPartyMemberKicked(RosterKey))
 	{
-		if (ASPPlayerState* ScrollPlayerState =
-			NewPlayer->GetPlayerState<ASPPlayerState>())
-		{
-			ScrollPlayerState->AuthorityTransitionParticipation(
-				ESPParticipationState::Spectating);
-		}
-		NewPlayer->StartSpectatingOnly();
-		ControllerRosterKeys.Remove(NewPlayer);
+		RejectPlayerSpawn(NewPlayer);
 		if (GameSession)
 		{
 			GameSession->KickPlayer(
@@ -225,19 +219,6 @@ void ASPGameMode::PostLogin(APlayerController* NewPlayer)
 	{
 		bAcceptedIntoRun = IsRunReconnectAllowed(RosterKey)
 			&& TryRestoreDisconnectedPlayer(NewPlayer, RosterKey);
-		if (!bAcceptedIntoRun)
-		{
-			if (ASPPlayerState* ScrollPlayerState =
-				NewPlayer->GetPlayerState<ASPPlayerState>())
-			{
-				ScrollPlayerState->AuthorityTransitionParticipation(
-					ESPParticipationState::Spectating);
-			}
-			NewPlayer->StartSpectatingOnly();
-			UE_LOG(LogSPGameMode, Warning,
-				TEXT("SP_RUN_LATE_JOIN_REJECTED controller=%s key=%s"),
-				*GetNameSafe(NewPlayer), *RosterKey);
-		}
 	}
 	else if (RunRosterKeys.Num() < ExpectedPlayers
 		&& !RunRosterKeys.Contains(RosterKey))
@@ -248,6 +229,23 @@ void ASPGameMode::PostLogin(APlayerController* NewPlayer)
 	else
 	{
 		bAcceptedIntoRun = RunRosterKeys.Contains(RosterKey);
+	}
+	if (!bAcceptedIntoRun)
+	{
+		RejectPlayerSpawn(NewPlayer);
+		UE_LOG(LogSPGameMode, Warning,
+			TEXT("SP_RUN_JOIN_REJECTED controller=%s key=%s phase=%s roster=%d expected=%d"),
+			*GetNameSafe(NewPlayer),
+			*RosterKey,
+			bRunInProgress ? TEXT("field") : TEXT("preparing"),
+			RunRosterKeys.Num(),
+			ExpectedPlayers);
+	}
+	else
+	{
+		// Party connectivity/readiness is mutated only after fixed-roster
+		// admission succeeds.
+		RegisterPartyMember(NewPlayer, RosterKey);
 	}
 
 	UE_LOG(LogSPGameMode, Display,
@@ -260,6 +258,8 @@ void ASPGameMode::PostLogin(APlayerController* NewPlayer)
 
 void ASPGameMode::Logout(AController* Exiting)
 {
+	ReleasePlayerStartReservation(Exiting);
+
 	const FString* ExistingRosterKey = ControllerRosterKeys.Find(Exiting);
 	const FString RosterKey = ExistingRosterKey
 		? *ExistingRosterKey
@@ -316,6 +316,134 @@ void ASPGameMode::Logout(AController* Exiting)
 	Super::Logout(Exiting);
 	RefreshSessionPhase();
 	RefreshRunRosterAndResolution();
+}
+
+AActor* ASPGameMode::FindPlayerStart_Implementation(
+	AController* Player,
+	const FString& IncomingName)
+{
+	if (!IncomingName.IsEmpty())
+	{
+		UE_LOG(LogSPGameMode, Verbose,
+			TEXT("SP_PLAYER_START_PORTAL_IGNORED controller=%s portal=%s"),
+			*GetNameSafe(Player), *IncomingName);
+	}
+
+	// The reservation is authoritative for both initial spawn and restarts.
+	// Do not call Super: its PIE fallback deliberately prefers APlayerStartPIE.
+	return ChoosePlayerStart_Implementation(Player);
+}
+
+AActor* ASPGameMode::ChoosePlayerStart_Implementation(AController* Player)
+{
+	UWorld* World = GetWorld();
+	if (!Player || !World)
+	{
+		UE_LOG(LogSPGameMode, Error,
+			TEXT("SP_PLAYER_START_UNAVAILABLE reason=invalid_context controller=%s world=%s"),
+			*GetNameSafe(Player), *GetNameSafe(World));
+		return nullptr;
+	}
+
+	TArray<APlayerStart*> ConfiguredStarts;
+	ConfiguredStarts.SetNumZeroed(SPPlayerStartPolicy::SlotCount);
+	TSet<int32> ConfiguredSlots;
+	for (TActorIterator<APlayerStart> It(World); It; ++It)
+	{
+		APlayerStart* Candidate = *It;
+		if (!IsValid(Candidate) || Candidate->IsA<APlayerStartPIE>())
+		{
+			continue;
+		}
+
+		const int32 SlotIndex =
+			SPPlayerStartPolicy::GetSlotIndex(
+				Candidate->PlayerStartTag);
+		if (SlotIndex == INDEX_NONE)
+		{
+			continue;
+		}
+
+		APlayerStart*& ExistingStart = ConfiguredStarts[SlotIndex];
+		if (!ExistingStart)
+		{
+			ExistingStart = Candidate;
+			ConfiguredSlots.Add(SlotIndex);
+			continue;
+		}
+
+		APlayerStart* PreferredStart =
+			Candidate->GetPathName().Compare(
+				ExistingStart->GetPathName(),
+				ESearchCase::CaseSensitive) < 0
+			? Candidate
+			: ExistingStart;
+		APlayerStart* IgnoredStart =
+			PreferredStart == Candidate
+			? ExistingStart
+			: Candidate;
+		ExistingStart = PreferredStart;
+		UE_LOG(LogSPGameMode, Error,
+			TEXT("SP_PLAYER_START_DUPLICATE tag=%s kept=%s ignored=%s"),
+			*SPPlayerStartPolicy::MakeSlotTag(SlotIndex).ToString(),
+			*GetNameSafe(PreferredStart),
+			*GetNameSafe(IgnoredStart));
+	}
+
+	for (auto ReservationIt =
+			PlayerStartSlotReservations.CreateIterator();
+		ReservationIt;
+		++ReservationIt)
+	{
+		if (!ReservationIt.Key().IsValid()
+			|| !ConfiguredSlots.Contains(ReservationIt.Value()))
+		{
+			ReservationIt.RemoveCurrent();
+		}
+	}
+
+	if (const int32* ReservedSlot =
+		PlayerStartSlotReservations.Find(Player))
+	{
+		APlayerStart* ReservedStart =
+			ConfiguredStarts[*ReservedSlot];
+		if (IsValid(ReservedStart))
+		{
+			return ReservedStart;
+		}
+
+		PlayerStartSlotReservations.Remove(Player);
+	}
+
+	TSet<int32> ReservedSlots;
+	for (const TPair<TWeakObjectPtr<AController>, int32>& Reservation
+		: PlayerStartSlotReservations)
+	{
+		ReservedSlots.Add(Reservation.Value);
+	}
+
+	const int32 SelectedSlot =
+		SPPlayerStartPolicy::ChooseLowestAvailableSlot(
+			ConfiguredSlots,
+			ReservedSlots);
+	if (SelectedSlot == INDEX_NONE)
+	{
+		UE_LOG(LogSPGameMode, Error,
+			TEXT("SP_PLAYER_START_UNAVAILABLE reason=no_free_configured_start controller=%s configured=%d reserved=%d expected_tags=SP_PlayerStart_0..3"),
+			*GetNameSafe(Player),
+			ConfiguredSlots.Num(),
+			ReservedSlots.Num());
+		return nullptr;
+	}
+
+	PlayerStartSlotReservations.Add(Player, SelectedSlot);
+	APlayerStart* SelectedStart = ConfiguredStarts[SelectedSlot];
+	UE_LOG(LogSPGameMode, Display,
+		TEXT("SP_PLAYER_START_RESERVED controller=%s slot=%d start=%s"),
+		*GetNameSafe(Player),
+		SelectedSlot,
+		*GetNameSafe(SelectedStart));
+	return SelectedStart;
 }
 
 bool ASPGameMode::TryExtractCharacter(ASPCharacter* Character)
@@ -450,7 +578,6 @@ void ASPGameMode::SpawnSpikeWorld()
 	}
 
 	bSpikeWorldSpawned = true;
-	SpawnPlayerStarts();
 	SpawnGrayboxLighting();
 	SpawnDungeonLayout();
 	RuntimeContractDefinition =
@@ -487,7 +614,7 @@ void ASPGameMode::SpawnSpikeWorld()
 	SpawnThreats();
 
 	UE_LOG(LogSPGameMode, Display,
-		TEXT("SP_SPIKE_WORLD_SPAWNED starts=4 lights=1 rooms=8 pickups=4 threats=2 extraction=%s"),
+		TEXT("SP_SPIKE_WORLD_SPAWNED starts=map lights=1 rooms=8 pickups=4 threats=2 extraction=%s"),
 		*GetNameSafe(ExtractionZone));
 }
 
@@ -498,28 +625,6 @@ void ASPGameMode::SpawnGrayboxLighting()
 	SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 	GetWorld()->SpawnActor<ASPGrayboxLighting>(
 		ASPGrayboxLighting::StaticClass(), FTransform::Identity, SpawnParameters);
-}
-
-void ASPGameMode::SpawnPlayerStarts()
-{
-	static const FVector StartLocations[] =
-	{
-		FVector(-650.0f, -200.0f, 110.0f),
-		FVector(-650.0f,  200.0f, 110.0f),
-		FVector(-750.0f,    0.0f, 110.0f),
-		FVector(-600.0f,    0.0f, 110.0f)
-	};
-
-	for (int32 Index = 0; Index < UE_ARRAY_COUNT(StartLocations); ++Index)
-	{
-		FActorSpawnParameters SpawnParameters;
-		SpawnParameters.Name = FName(*FString::Printf(TEXT("SP_PlayerStart_%d"), Index));
-		SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-		GetWorld()->SpawnActor<APlayerStart>(
-			APlayerStart::StaticClass(),
-			FTransform(FRotator::ZeroRotator, StartLocations[Index]),
-			SpawnParameters);
-	}
 }
 
 void ASPGameMode::SpawnGrayboxBlocks()
@@ -2140,4 +2245,41 @@ FString ASPGameMode::BuildLocalPlayerId(const ASPPlayerState* PlayerState) const
 	}
 
 	return FString::Printf(TEXT("LocalPlayer-%d-%s"), PlayerState->GetPlayerId(), *PlayerState->GetPlayerName());
+}
+
+void ASPGameMode::RejectPlayerSpawn(APlayerController* Player)
+{
+	if (!Player)
+	{
+		return;
+	}
+
+	APawn* RejectedPawn = Player->GetPawn();
+	if (ASPPlayerState* ScrollPlayerState =
+		Player->GetPlayerState<ASPPlayerState>())
+	{
+		ScrollPlayerState->AuthorityTransitionParticipation(
+			ESPParticipationState::Spectating);
+	}
+	Player->StartSpectatingOnly();
+	if (IsValid(RejectedPawn))
+	{
+		RejectedPawn->Destroy();
+	}
+	ControllerRosterKeys.Remove(Player);
+	ReleasePlayerStartReservation(Player);
+}
+
+void ASPGameMode::ReleasePlayerStartReservation(AController* Controller)
+{
+	const int32 RemovedCount =
+		Controller
+		? PlayerStartSlotReservations.Remove(Controller)
+		: 0;
+	if (RemovedCount > 0)
+	{
+		UE_LOG(LogSPGameMode, Display,
+			TEXT("SP_PLAYER_START_RELEASED controller=%s"),
+			*GetNameSafe(Controller));
+	}
 }

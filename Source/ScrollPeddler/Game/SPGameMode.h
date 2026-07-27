@@ -55,6 +55,11 @@ public:
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void PostLogin(APlayerController* NewPlayer) override;
 	virtual void Logout(AController* Exiting) override;
+	virtual AActor* FindPlayerStart_Implementation(
+		AController* Player,
+		const FString& IncomingName) override;
+	virtual AActor* ChoosePlayerStart_Implementation(
+		AController* Player) override;
 
 	/** Routes an authority request through the extraction zone's distance validation. */
 	bool TryExtractCharacter(ASPCharacter* Character);
@@ -98,7 +103,6 @@ public:
 
 private:
 	void SpawnSpikeWorld();
-	void SpawnPlayerStarts();
 	void SpawnGrayboxLighting();
 	void SpawnGrayboxBlocks();
 	void SpawnDungeonLayout();
@@ -139,6 +143,8 @@ private:
 	void TryCommitSettlement();
 	void CompleteSettlementAfterAckWindow();
 	FString BuildLocalPlayerId(const ASPPlayerState* PlayerState) const;
+	void RejectPlayerSpawn(APlayerController* Player);
+	void ReleasePlayerStartReservation(AController* Controller);
 
 	UFUNCTION()
 	void HandleThreatAttackIntent(const FSPThreatAttackIntent& Intent);
@@ -158,6 +164,7 @@ private:
 	TMap<TWeakObjectPtr<ASPPlayerController>, FString> PendingSettlementHashes;
 	TSet<TWeakObjectPtr<ASPPlayerController>> SuccessfulSettlementAcks;
 	TMap<TWeakObjectPtr<AController>, FString> ControllerRosterKeys;
+	TMap<TWeakObjectPtr<AController>, int32> PlayerStartSlotReservations;
 	TSet<FString> RunRosterKeys;
 	TMap<FString, FSPDisconnectedRunRecord> DisconnectedRunPlayers;
 	TMap<FString, FSPInventoryState> PendingReconnectInventories;
@@ -199,5 +206,6 @@ private:
 
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FSPGameModeKickAuthorityCleanupTest;
+	friend class FSPRejectedPlayerSpawnCleanupTest;
 #endif
 };
