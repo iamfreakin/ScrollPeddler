@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
-#include "Core/SPTypes.h"
+#include "Core/SPItemTypes.h"
 #include "SPInventoryComponent.generated.h"
 
 UCLASS(ClassGroup = (ScrollPeddler), meta = (BlueprintSpawnableComponent))
@@ -16,33 +16,70 @@ public:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	UFUNCTION(BlueprintPure, Category = "Scroll Peddler|Inventory")
-	int32 GetItemCount() const { return Items.Num(); }
+	int32 GetItemCount() const { return InventoryState.GetOccupiedSlotCount(); }
 
 	UFUNCTION(BlueprintPure, Category = "Scroll Peddler|Inventory")
-	int32 GetCapacity() const { return Capacity; }
+	int32 GetCapacity() const { return FSPInventoryState::TotalSlotCapacity; }
 
 	UFUNCTION(BlueprintPure, Category = "Scroll Peddler|Inventory")
-	bool HasCapacity() const { return Items.Num() < Capacity; }
+	int32 GetBagCapacity() const { return FSPInventoryState::BagCapacity; }
+
+	UFUNCTION(BlueprintPure, Category = "Scroll Peddler|Inventory")
+	bool HasCapacity() const { return InventoryState.HasEmptySlot(); }
 
 	UFUNCTION(BlueprintPure, Category = "Scroll Peddler|Inventory")
 	FGuid GetFirstInstanceId() const;
 
-	const TArray<FSPScrollInstance>& GetItems() const { return Items; }
+	UFUNCTION(BlueprintPure, Category = "Scroll Peddler|Inventory")
+	int32 GetInventoryRevision() const { return InventoryState.Revision; }
+
+	const FSPInventoryState& GetInventoryState() const { return InventoryState; }
+	const FSPItemInstance* FindItemInstanceById(const FGuid& InstanceId) const;
+
+	/** Compatibility projection for legacy scroll-only callers. */
+	const TArray<FSPScrollInstance>& GetItems() const { return LegacyScrollItems; }
 	const FSPScrollInstance* FindItemByInstanceId(const FGuid& InstanceId) const;
 
-	/** Server-only mutation. Returns false for invalid, duplicate, or over-capacity items. */
+	/** Server-only generic mutation with stale-revision validation. */
+	bool TryAddItem(
+		const FSPItemInstance& Item,
+		int32 ExpectedRevision,
+		bool bAllowHandSwap,
+		FSPItemInstance& OutDisplacedItem,
+		ESPInventoryMutationResult& OutResult);
+
+	/** Server-only exact-instance removal with stale-revision validation. */
+	bool RemoveItemByInstanceId(
+		const FGuid& InstanceId,
+		int32 ExpectedRevision,
+		FSPItemInstance& OutRemovedItem,
+		ESPInventoryMutationResult& OutResult);
+
+	/** Server-only atomic hand/bag exchange. */
+	bool SwapHandWithBag(
+		int32 BagIndex,
+		int32 ExpectedRevision,
+		ESPInventoryMutationResult& OutResult);
+
+	/** Restores an already validated host-owned reconnect snapshot. */
+	bool AuthorityRestoreState(const FSPInventoryState& Snapshot);
+
+	/** Legacy server-only scroll mutation adapter. */
 	bool TryAddItem(const FSPScrollInstance& Item);
 
-	/** Server-only mutation. OutRemovedItem is assigned only when one item is committed. */
+	/** Legacy server-only scroll removal adapter. */
 	bool RemoveItemByInstanceId(const FGuid& InstanceId, FSPScrollInstance& OutRemovedItem);
 
 private:
 	UFUNCTION()
-	void OnRep_Items();
+	void OnRep_InventoryState();
 
-	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Replicated, Category = "Inventory", meta = (AllowPrivateAccess = "true"))
-	int32 Capacity = 4;
+	void RebuildLegacyScrollProjection();
+	void NotifyInventoryMutation(const TCHAR* Operation, const FGuid& InstanceId);
 
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, ReplicatedUsing = OnRep_Items, Category = "Inventory", meta = (AllowPrivateAccess = "true"))
-	TArray<FSPScrollInstance> Items;
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, ReplicatedUsing = OnRep_InventoryState, Category = "Inventory", meta = (AllowPrivateAccess = "true"))
+	FSPInventoryState InventoryState;
+
+	UPROPERTY(Transient)
+	TArray<FSPScrollInstance> LegacyScrollItems;
 };

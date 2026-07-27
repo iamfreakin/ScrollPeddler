@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Core/SPTypes.h"
 #include "GameFramework/Actor.h"
+#include "World/SPInteractable.h"
 #include "SPScrollPickup.generated.h"
 
 class ASPCharacter;
@@ -12,7 +13,7 @@ class UStaticMeshComponent;
 struct FStreamableHandle;
 
 UCLASS()
-class SCROLLPEDDLER_API ASPScrollPickup : public AActor
+class SCROLLPEDDLER_API ASPScrollPickup : public AActor, public ISPInteractable
 {
 	GENERATED_BODY()
 
@@ -31,6 +32,12 @@ public:
 	bool TryReserve(ASPCharacter* Claimant);
 	void ReleaseReservation(ASPCharacter* Claimant);
 	bool CommitClaim(ASPCharacter* Claimant);
+
+	virtual FText GetInteractionPrompt_Implementation(const APawn* Viewer) const override;
+	virtual FVector GetInteractionLocation_Implementation() const override;
+	virtual ESPInteractionResultCode ValidateInteraction(
+		const APawn* RequestingPawn,
+		const FSPInteractionRequest& Request) const override;
 
 protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;

@@ -10,6 +10,7 @@
 #include "Misc/Parse.h"
 #include "Net/UnrealNetwork.h"
 #include "Player/SPCharacter.h"
+#include "GameFramework/Pawn.h"
 #include "ScrollPeddler.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -133,6 +134,40 @@ bool ASPScrollPickup::CommitClaim(ASPCharacter* Claimant)
 #endif
 	SetLifeSpan(ClaimedLifeSpan);
 	return true;
+}
+
+FText ASPScrollPickup::GetInteractionPrompt_Implementation(const APawn* Viewer) const
+{
+	return IsAvailable()
+		? NSLOCTEXT("ScrollPeddler", "PickupPrompt", "PICK UP")
+		: FText::GetEmpty();
+}
+
+FVector ASPScrollPickup::GetInteractionLocation_Implementation() const
+{
+	return GetActorLocation();
+}
+
+ESPInteractionResultCode ASPScrollPickup::ValidateInteraction(
+	const APawn* RequestingPawn,
+	const FSPInteractionRequest& Request) const
+{
+	if (!Request.IsValid()
+		|| Request.Action != ESPInteractionAction::Pickup
+		|| !IsValid(RequestingPawn))
+	{
+		return ESPInteractionResultCode::InvalidRequest;
+	}
+
+	if (Request.TargetInstanceId.IsValid()
+		&& Request.TargetInstanceId != ScrollInstance.InstanceId)
+	{
+		return ESPInteractionResultCode::RequestConflict;
+	}
+
+	return IsAvailable()
+		? ESPInteractionResultCode::Success
+		: ESPInteractionResultCode::Unavailable;
 }
 
 void ASPScrollPickup::OnRep_ScrollInstance()

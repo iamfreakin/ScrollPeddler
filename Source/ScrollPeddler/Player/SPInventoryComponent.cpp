@@ -14,13 +14,17 @@ void USPInventoryComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-	DOREPLIFETIME_CONDITION(USPInventoryComponent, Capacity, COND_OwnerOnly);
-	DOREPLIFETIME_CONDITION(USPInventoryComponent, Items, COND_OwnerOnly);
+	DOREPLIFETIME_CONDITION(USPInventoryComponent, InventoryState, COND_OwnerOnly);
 }
 
 FGuid USPInventoryComponent::GetFirstInstanceId() const
 {
-	return Items.IsEmpty() ? FGuid() : Items[0].InstanceId;
+	return LegacyScrollItems.IsEmpty() ? FGuid() : LegacyScrollItems[0].InstanceId;
+}
+
+const FSPItemInstance* USPInventoryComponent::FindItemInstanceById(const FGuid& InstanceId) const
+{
+	return InventoryState.FindItemByInstanceId(InstanceId);
 }
 
 const FSPScrollInstance* USPInventoryComponent::FindItemByInstanceId(const FGuid& InstanceId) const
@@ -30,56 +34,190 @@ const FSPScrollInstance* USPInventoryComponent::FindItemByInstanceId(const FGuid
 		return nullptr;
 	}
 
-	return Items.FindByPredicate(
+	return LegacyScrollItems.FindByPredicate(
 		[&InstanceId](const FSPScrollInstance& Candidate)
 		{
 			return Candidate.InstanceId == InstanceId;
 		});
+}
+
+bool USPInventoryComponent::TryAddItem(
+	const FSPItemInstance& Item,
+	const int32 ExpectedRevision,
+	const bool bAllowHandSwap,
+	FSPItemInstance& OutDisplacedItem,
+	ESPInventoryMutationResult& OutResult)
+{
+	AActor* OwnerActor = GetOwner();
+	if (!OwnerActor || !OwnerActor->HasAuthority())
+	{
+		OutResult = ESPInventoryMutationResult::InvalidItem;
+		return false;
+	}
+
+	if (!InventoryState.TryAddItem(
+		Item,
+		ExpectedRevision,
+		bAllowHandSwap,
+		OutDisplacedItem,
+		OutResult))
+	{
+		return false;
+	}
+
+	RebuildLegacyScrollProjection();
+	NotifyInventoryMutation(TEXT("ADD"), Item.InstanceId);
+	return true;
+}
+
+bool USPInventoryComponent::RemoveItemByInstanceId(
+	const FGuid& InstanceId,
+	const int32 ExpectedRevision,
+	FSPItemInstance& OutRemovedItem,
+	ESPInventoryMutationResult& OutResult)
+{
+	AActor* OwnerActor = GetOwner();
+	if (!OwnerActor || !OwnerActor->HasAuthority())
+	{
+		OutResult = ESPInventoryMutationResult::InvalidItem;
+		return false;
+	}
+
+	if (!InventoryState.TryRemoveItemByInstanceId(
+		InstanceId,
+		ExpectedRevision,
+		OutRemovedItem,
+		OutResult))
+	{
+		return false;
+	}
+
+	RebuildLegacyScrollProjection();
+	NotifyInventoryMutation(TEXT("REMOVE"), InstanceId);
+	return true;
+}
+
+bool USPInventoryComponent::SwapHandWithBag(
+	const int32 BagIndex,
+	const int32 ExpectedRevision,
+	ESPInventoryMutationResult& OutResult)
+{
+	AActor* OwnerActor = GetOwner();
+	if (!OwnerActor || !OwnerActor->HasAuthority())
+	{
+		OutResult = ESPInventoryMutationResult::InvalidItem;
+		return false;
+	}
+
+	if (!InventoryState.TrySwapHandWithBag(BagIndex, ExpectedRevision, OutResult))
+	{
+		return false;
+	}
+
+	RebuildLegacyScrollProjection();
+	NotifyInventoryMutation(TEXT("SWAP"), FGuid());
+	return true;
+}
+
+bool USPInventoryComponent::AuthorityRestoreState(
+	const FSPInventoryState& Snapshot)
+{
+	AActor* OwnerActor = GetOwner();
+	if (!OwnerActor || !OwnerActor->HasAuthority()
+		|| !Snapshot.IsStructurallyValid())
+	{
+		return false;
+	}
+
+	InventoryState = Snapshot;
+	RebuildLegacyScrollProjection();
+	NotifyInventoryMutation(TEXT("RESTORE"), FGuid());
+	return true;
 }
 
 bool USPInventoryComponent::TryAddItem(const FSPScrollInstance& Item)
 {
-	AActor* OwnerActor = GetOwner();
-	if (!OwnerActor || !OwnerActor->HasAuthority() || !Item.IsValid() || !HasCapacity() || FindItemByInstanceId(Item.InstanceId))
-	{
-		return false;
-	}
-
-	Items.Add(Item);
-	OwnerActor->ForceNetUpdate();
-	UE_LOG(LogScrollPeddler, Log, TEXT("[SP_TECH_SPIKE_INVENTORY_ADD] Owner=%s InstanceId=%s Count=%d"),
-		*GetNameSafe(OwnerActor), *Item.InstanceId.ToString(EGuidFormats::DigitsWithHyphensLower), Items.Num());
-	return true;
+	FSPItemInstance DisplacedItem;
+	ESPInventoryMutationResult Result = ESPInventoryMutationResult::InvalidItem;
+	return TryAddItem(
+		FSPItemInstance::FromLegacyScroll(Item),
+		InventoryState.Revision,
+		false,
+		DisplacedItem,
+		Result);
 }
 
-bool USPInventoryComponent::RemoveItemByInstanceId(const FGuid& InstanceId, FSPScrollInstance& OutRemovedItem)
+bool USPInventoryComponent::RemoveItemByInstanceId(
+	const FGuid& InstanceId,
+	FSPScrollInstance& OutRemovedItem)
 {
-	AActor* OwnerActor = GetOwner();
-	if (!OwnerActor || !OwnerActor->HasAuthority() || !InstanceId.IsValid())
+	const FSPItemInstance* ExistingItem = InventoryState.FindItemByInstanceId(InstanceId);
+	if (!ExistingItem || ExistingItem->Kind != ESPItemKind::Scroll)
 	{
 		return false;
 	}
 
-	const int32 Index = Items.IndexOfByPredicate(
-		[&InstanceId](const FSPScrollInstance& Candidate)
+	FSPItemInstance RemovedItem;
+	ESPInventoryMutationResult Result = ESPInventoryMutationResult::InvalidItem;
+	if (!RemoveItemByInstanceId(
+		InstanceId,
+		InventoryState.Revision,
+		RemovedItem,
+		Result))
+	{
+		return false;
+	}
+
+	const bool bConverted = RemovedItem.TryToLegacyScroll(OutRemovedItem);
+	check(bConverted);
+	return bConverted;
+}
+
+void USPInventoryComponent::OnRep_InventoryState()
+{
+	RebuildLegacyScrollProjection();
+	UE_LOG(LogScrollPeddler, Verbose, TEXT("[SP_INVENTORY_REPLICATED] Owner=%s Slots=%d Revision=%d"),
+		*GetNameSafe(GetOwner()), InventoryState.GetOccupiedSlotCount(), InventoryState.Revision);
+}
+
+void USPInventoryComponent::RebuildLegacyScrollProjection()
+{
+	LegacyScrollItems.Reset();
+	auto AddScrollIfPresent =
+		[this](const FSPInventorySlot& Slot)
 		{
-			return Candidate.InstanceId == InstanceId;
-		});
-	if (Index == INDEX_NONE)
-	{
-		return false;
-	}
+			if (!Slot.bOccupied)
+			{
+				return;
+			}
 
-	OutRemovedItem = Items[Index];
-	Items.RemoveAt(Index, 1, EAllowShrinking::No);
-	OwnerActor->ForceNetUpdate();
-	UE_LOG(LogScrollPeddler, Log, TEXT("[SP_TECH_SPIKE_INVENTORY_REMOVE] Owner=%s InstanceId=%s Count=%d"),
-		*GetNameSafe(OwnerActor), *InstanceId.ToString(EGuidFormats::DigitsWithHyphensLower), Items.Num());
-	return true;
+			FSPScrollInstance LegacyScroll;
+			if (Slot.Item.TryToLegacyScroll(LegacyScroll))
+			{
+				LegacyScrollItems.Add(MoveTemp(LegacyScroll));
+			}
+		};
+
+	AddScrollIfPresent(InventoryState.HandSlot);
+	for (const FSPInventorySlot& BagSlot : InventoryState.BagSlots)
+	{
+		AddScrollIfPresent(BagSlot);
+	}
 }
 
-void USPInventoryComponent::OnRep_Items()
+void USPInventoryComponent::NotifyInventoryMutation(
+	const TCHAR* Operation,
+	const FGuid& InstanceId)
 {
-	UE_LOG(LogScrollPeddler, Verbose, TEXT("[SP_TECH_SPIKE_INVENTORY_REPLICATED] Owner=%s Count=%d"),
-		*GetNameSafe(GetOwner()), Items.Num());
+	AActor* OwnerActor = GetOwner();
+	check(OwnerActor && OwnerActor->HasAuthority());
+	OwnerActor->ForceNetUpdate();
+	UE_LOG(LogScrollPeddler, Log, TEXT("[SP_INVENTORY_%s] Owner=%s InstanceId=%s Slots=%d Revision=%d"),
+		Operation,
+		*GetNameSafe(OwnerActor),
+		InstanceId.IsValid()
+			? *InstanceId.ToString(EGuidFormats::DigitsWithHyphensLower)
+			: TEXT("None"),
+		InventoryState.GetOccupiedSlotCount(),
+		InventoryState.Revision);
 }

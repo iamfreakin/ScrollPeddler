@@ -4,6 +4,7 @@
 #include "EngineUtils.h"
 #include "Game/SPGameMode.h"
 #include "Game/SPGameState.h"
+#include "Game/SPPartyState.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Misc/CommandLine.h"
@@ -18,7 +19,67 @@
 void ASPPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
+	if (IsLocalController())
+	{
+		if (USPOnlineSessionSubsystem* OnlineSessions =
+			GetGameInstance()
+				? GetGameInstance()->GetSubsystem<USPOnlineSessionSubsystem>()
+				: nullptr)
+		{
+			OnlineSessions->OnOperationComplete.AddUniqueDynamic(
+				this,
+				&ASPPlayerController::HandleOnlineOperationComplete);
+			OnlineSessions->OnSearchResultsUpdated.AddUniqueDynamic(
+				this,
+				&ASPPlayerController::HandleOnlineSearchResults);
+			OnlineSessions->OnConnectStringReady.AddUniqueDynamic(
+				this,
+				&ASPPlayerController::HandleOnlineConnectString);
+		}
+	}
 	StartAutoSpikeIfRequested();
+}
+
+void ASPPlayerController::EndPlay(
+	const EEndPlayReason::Type EndPlayReason)
+{
+	if (USPOnlineSessionSubsystem* OnlineSessions =
+		GetGameInstance()
+			? GetGameInstance()->GetSubsystem<USPOnlineSessionSubsystem>()
+			: nullptr)
+	{
+		OnlineSessions->OnOperationComplete.RemoveDynamic(
+			this,
+			&ASPPlayerController::HandleOnlineOperationComplete);
+		OnlineSessions->OnSearchResultsUpdated.RemoveDynamic(
+			this,
+			&ASPPlayerController::HandleOnlineSearchResults);
+		OnlineSessions->OnConnectStringReady.RemoveDynamic(
+			this,
+			&ASPPlayerController::HandleOnlineConnectString);
+	}
+
+	Super::EndPlay(EndPlayReason);
+}
+
+void ASPPlayerController::SetupInputComponent()
+{
+	Super::SetupInputComponent();
+	if (!InputComponent)
+	{
+		return;
+	}
+
+	InputComponent->BindAction(
+		TEXT("PushToTalk"),
+		IE_Pressed,
+		this,
+		&APlayerController::StartTalking);
+	InputComponent->BindAction(
+		TEXT("PushToTalk"),
+		IE_Released,
+		this,
+		&APlayerController::StopTalking);
 }
 
 void ASPPlayerController::SPHost(const int32 InExpectedPlayers)
@@ -38,6 +99,274 @@ void ASPPlayerController::SPJoin(const FString& Address)
 
 	UE_LOG(LogScrollPeddler, Display, TEXT("SP_SPIKE_JOIN_REQUEST address=%s"), *Address);
 	ClientTravel(Address, TRAVEL_Absolute);
+}
+
+void ASPPlayerController::SPCreateLobby(const int32 MaxPlayers)
+{
+	if (!IsLocalController())
+	{
+		return;
+	}
+
+	USPOnlineSessionSubsystem* OnlineSessions =
+		GetGameInstance()
+			? GetGameInstance()->GetSubsystem<USPOnlineSessionSubsystem>()
+			: nullptr;
+	if (!OnlineSessions)
+	{
+		UE_LOG(LogScrollPeddler, Warning,
+			TEXT("SP_ONLINE_CREATE_REJECTED reason=missing_subsystem"));
+		return;
+	}
+
+	PendingOnlineHostPlayers = FMath::Clamp(
+		MaxPlayers,
+		USPOnlineSessionSubsystem::MinPublicPlayers,
+		USPOnlineSessionSubsystem::MaxPublicPlayers);
+	UE_LOG(LogScrollPeddler, Display,
+		TEXT("SP_ONLINE_CREATE_REQUEST max_players=%d"),
+		PendingOnlineHostPlayers);
+	OnlineSessions->CreatePublicLobby(PendingOnlineHostPlayers);
+}
+
+void ASPPlayerController::SPFindLobbies()
+{
+	if (!IsLocalController())
+	{
+		return;
+	}
+
+	if (USPOnlineSessionSubsystem* OnlineSessions =
+		GetGameInstance()
+			? GetGameInstance()->GetSubsystem<USPOnlineSessionSubsystem>()
+			: nullptr)
+	{
+		OnlineSessions->FindPublicLobbies();
+	}
+}
+
+void ASPPlayerController::SPQuickPlay()
+{
+	if (!IsLocalController())
+	{
+		return;
+	}
+
+	if (USPOnlineSessionSubsystem* OnlineSessions =
+		GetGameInstance()
+			? GetGameInstance()->GetSubsystem<USPOnlineSessionSubsystem>()
+			: nullptr)
+	{
+		OnlineSessions->QuickPlay();
+	}
+}
+
+void ASPPlayerController::SPJoinLobby(const int32 SearchResultIndex)
+{
+	if (!IsLocalController())
+	{
+		return;
+	}
+
+	if (USPOnlineSessionSubsystem* OnlineSessions =
+		GetGameInstance()
+			? GetGameInstance()->GetSubsystem<USPOnlineSessionSubsystem>()
+			: nullptr)
+	{
+		OnlineSessions->JoinLobbyByIndex(SearchResultIndex);
+	}
+}
+
+void ASPPlayerController::HandleOnlineOperationComplete(
+	const ESPOnlineSessionOperation Operation,
+	const ESPOnlineSessionResult Result)
+{
+	const FString OperationName =
+		StaticEnum<ESPOnlineSessionOperation>()->GetNameStringByValue(
+			static_cast<int64>(Operation));
+	const FString ResultName =
+		StaticEnum<ESPOnlineSessionResult>()->GetNameStringByValue(
+			static_cast<int64>(Result));
+
+	if (Result == ESPOnlineSessionResult::Success)
+	{
+		UE_LOG(LogScrollPeddler, Display,
+			TEXT("SP_ONLINE_OPERATION operation=%s result=%s"),
+			*OperationName,
+			*ResultName);
+	}
+	else
+	{
+		UE_LOG(LogScrollPeddler, Warning,
+			TEXT("SP_ONLINE_OPERATION operation=%s result=%s"),
+			*OperationName,
+			*ResultName);
+	}
+
+	if (Operation != ESPOnlineSessionOperation::Create)
+	{
+		return;
+	}
+
+	const int32 HostPlayers = PendingOnlineHostPlayers;
+	PendingOnlineHostPlayers = 0;
+	if (Result != ESPOnlineSessionResult::Success
+		|| HostPlayers < USPOnlineSessionSubsystem::MinPublicPlayers)
+	{
+		return;
+	}
+
+	const FString Options = FString::Printf(
+		TEXT("listen?ExpectedPlayers=%d"),
+		HostPlayers);
+	UGameplayStatics::OpenLevel(
+		this,
+		TEXT("/Game/Maps/TechSpike"),
+		true,
+		Options);
+}
+
+void ASPPlayerController::HandleOnlineSearchResults(
+	const TArray<FSPOnlineLobbySummary>& Results)
+{
+	UE_LOG(LogScrollPeddler, Display,
+		TEXT("SP_ONLINE_SEARCH_RESULTS count=%d"),
+		Results.Num());
+	for (const FSPOnlineLobbySummary& Result : Results)
+	{
+		UE_LOG(LogScrollPeddler, Display,
+			TEXT("SP_ONLINE_LOBBY index=%d host=%s open=%d max=%d ping=%d joinable=%d invites=%d"),
+			Result.SearchResultIndex,
+			*Result.HostDisplayName,
+			Result.OpenPublicConnections,
+			Result.MaxPlayers,
+			Result.PingMs,
+			Result.bJoinable ? 1 : 0,
+			Result.bAllowsInvites ? 1 : 0);
+	}
+}
+
+void ASPPlayerController::HandleOnlineConnectString(
+	const FString& ConnectString)
+{
+	if (!IsLocalController() || ConnectString.IsEmpty())
+	{
+		return;
+	}
+
+	UE_LOG(LogScrollPeddler, Display,
+		TEXT("SP_ONLINE_TRAVEL connect=%s"),
+		*ConnectString);
+	ClientTravel(ConnectString, TRAVEL_Absolute);
+}
+
+ASPPartyState* ASPPlayerController::FindPartyState() const
+{
+	if (!GetWorld())
+	{
+		return nullptr;
+	}
+
+	TActorIterator<ASPPartyState> Iterator(GetWorld());
+	if (Iterator)
+	{
+		return *Iterator;
+	}
+	return nullptr;
+}
+
+FSPPartyActionRequest ASPPlayerController::MakePartyActionRequest() const
+{
+	FSPPartyActionRequest Request;
+	Request.RequestId = FGuid::NewGuid();
+	const ASPPartyState* CurrentPartyState = FindPartyState();
+	Request.ExpectedRevision = CurrentPartyState
+		? CurrentPartyState->GetGovernanceState().Revision
+		: 0;
+	return Request;
+}
+
+void ASPPlayerController::SPReady(const bool bReady)
+{
+	if (IsLocalController())
+	{
+		ServerSetPartyReady(bReady, MakePartyActionRequest());
+	}
+}
+
+void ASPPlayerController::SPChat(const FString& Message)
+{
+	if (IsLocalController() && !Message.IsEmpty())
+	{
+		ServerSubmitPartyChat(Message, MakePartyActionRequest());
+	}
+}
+
+void ASPPlayerController::SPKick(const int32 TargetPlayerId)
+{
+	if (IsLocalController())
+	{
+		ServerRequestHostKick(
+			TargetPlayerId,
+			MakePartyActionRequest());
+	}
+}
+
+void ASPPlayerController::SPVoteKick(const int32 TargetPlayerId)
+{
+	if (IsLocalController())
+	{
+		ServerRequestKickVote(
+			TargetPlayerId,
+			FGuid::NewGuid(),
+			MakePartyActionRequest());
+	}
+}
+
+void ASPPlayerController::SPVote(
+	const FString& VoteId,
+	const bool bApprove)
+{
+	FGuid ParsedVoteId;
+	if (IsLocalController() && FGuid::Parse(VoteId, ParsedVoteId))
+	{
+		ServerCastPartyVote(
+			ParsedVoteId,
+			bApprove
+				? ESPPartyVoteChoice::Approve
+				: ESPPartyVoteChoice::Reject,
+			MakePartyActionRequest());
+	}
+}
+
+void ASPPlayerController::SPMutePlayer(
+	const int32 TargetPlayerId,
+	const bool bMute)
+{
+	const ASPGameState* ScrollGameState =
+		GetWorld() ? GetWorld()->GetGameState<ASPGameState>() : nullptr;
+	if (!IsLocalController() || !ScrollGameState)
+	{
+		return;
+	}
+
+	for (APlayerState* CandidatePlayerState : ScrollGameState->PlayerArray)
+	{
+		if (CandidatePlayerState
+			&& CandidatePlayerState->GetPlayerId() == TargetPlayerId
+			&& CandidatePlayerState->GetUniqueId().IsValid())
+		{
+			if (bMute)
+			{
+				ServerMutePlayer(CandidatePlayerState->GetUniqueId());
+			}
+			else
+			{
+				ServerUnmutePlayer(CandidatePlayerState->GetUniqueId());
+			}
+			return;
+		}
+	}
 }
 
 void ASPPlayerController::StartAutoSpikeIfRequested()
@@ -244,6 +573,103 @@ void ASPPlayerController::ServerAcknowledgeSessionResult_Implementation(
 	}
 
 	ScrollGameMode->HandleSettlementAck(this, SessionId, ResultHash, bSaved);
+}
+
+void ASPPlayerController::ServerSetPartyReady_Implementation(
+	const bool bReady,
+	const FSPPartyActionRequest& Request)
+{
+	ASPGameMode* ScrollGameMode =
+		GetWorld() ? GetWorld()->GetAuthGameMode<ASPGameMode>() : nullptr;
+	ClientNotifyPartyAction(ScrollGameMode
+		? ScrollGameMode->HandlePartyReadyRequest(
+			this,
+			bReady,
+			Request)
+		: ESPPartyActionResult::InvalidState);
+}
+
+void ASPPlayerController::ServerSubmitPartyChat_Implementation(
+	const FString& Message,
+	const FSPPartyActionRequest& Request)
+{
+	ASPGameMode* ScrollGameMode =
+		GetWorld() ? GetWorld()->GetAuthGameMode<ASPGameMode>() : nullptr;
+	ClientNotifyPartyAction(ScrollGameMode
+		? ScrollGameMode->HandlePartyChatRequest(
+			this,
+			Message,
+			Request)
+		: ESPPartyActionResult::InvalidState);
+}
+
+void ASPPlayerController::ServerRequestHostKick_Implementation(
+	const int32 TargetPlayerId,
+	const FSPPartyActionRequest& Request)
+{
+	ASPGameMode* ScrollGameMode =
+		GetWorld() ? GetWorld()->GetAuthGameMode<ASPGameMode>() : nullptr;
+	ClientNotifyPartyAction(ScrollGameMode
+		? ScrollGameMode->HandleHostKickRequest(
+			this,
+			TargetPlayerId,
+			Request)
+		: ESPPartyActionResult::InvalidState);
+}
+
+void ASPPlayerController::ServerRequestKickVote_Implementation(
+	const int32 TargetPlayerId,
+	const FGuid VoteId,
+	const FSPPartyActionRequest& Request)
+{
+	ASPGameMode* ScrollGameMode =
+		GetWorld() ? GetWorld()->GetAuthGameMode<ASPGameMode>() : nullptr;
+	ClientNotifyPartyAction(ScrollGameMode
+		? ScrollGameMode->HandleStartKickVoteRequest(
+			this,
+			TargetPlayerId,
+			VoteId,
+			Request)
+		: ESPPartyActionResult::InvalidState);
+}
+
+void ASPPlayerController::ServerCastPartyVote_Implementation(
+	const FGuid VoteId,
+	const ESPPartyVoteChoice Choice,
+	const FSPPartyActionRequest& Request)
+{
+	ASPGameMode* ScrollGameMode =
+		GetWorld() ? GetWorld()->GetAuthGameMode<ASPGameMode>() : nullptr;
+	ClientNotifyPartyAction(ScrollGameMode
+		? ScrollGameMode->HandleCastPartyVoteRequest(
+			this,
+			VoteId,
+			Choice,
+			Request)
+		: ESPPartyActionResult::InvalidState);
+}
+
+void ASPPlayerController::ClientNotifyPartyAction_Implementation(
+	const ESPPartyActionResult Result)
+{
+	const FString ResultName =
+		StaticEnum<ESPPartyActionResult>()->GetNameStringByValue(
+			static_cast<int64>(Result));
+	if (Result == ESPPartyActionResult::Success
+		|| Result == ESPPartyActionResult::AlreadyProcessed)
+	{
+		UE_LOG(LogScrollPeddler, Display,
+			TEXT("SP_PARTY_ACTION_RESULT controller=%s result=%s"),
+			*GetNameSafe(this),
+			*ResultName);
+	}
+	else
+	{
+		UE_LOG(LogScrollPeddler, Warning,
+			TEXT("SP_PARTY_ACTION_RESULT controller=%s result=%s"),
+			*GetNameSafe(this),
+			*ResultName);
+	}
 }
 
 void ASPPlayerController::ScheduleAutoQuitIfRequested()

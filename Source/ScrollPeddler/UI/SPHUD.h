@@ -20,4 +20,12 @@ public:
 private:
 	void DrawCrosshair(const FVector2D& Center, const FLinearColor& Color) const;
 	void DrawCenteredPrompt(const FString& Prompt, const FLinearColor& Color, const FVector2D& Center) const;
+	void DrawRunAndInventoryStatus(
+		const class ASPCharacter* Character,
+		const class APlayerController* PlayerController) const;
+	void DrawHudLine(
+		const FString& Text,
+		float X,
+		float Y,
+		const FLinearColor& Color = FLinearColor::White) const;
 };
