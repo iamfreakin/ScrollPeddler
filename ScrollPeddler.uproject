@@ -45,6 +45,10 @@
 			"Enabled": false
 		},
 		{
+			"Name": "OnlineSubsystemSteam",
+			"Enabled": true
+		},
+		{
 			"Name": "OnlineSubsystemUtils",
 			"Enabled": true
 		}
