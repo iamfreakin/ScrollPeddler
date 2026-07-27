@@ -60,6 +60,9 @@ through `Normal -> Injured -> Down -> Missing`; repeated Down states use
   - `material.paper_scrap` (stack of three)
   - `equipment.archive_lantern`
   - `cargo.bound_archive_crate`
+- Four persistent PlayerStarts tagged `SP_PlayerStart_0` through
+  `SP_PlayerStart_3`; the server reserves the lowest free tag and ignores PIE
+  camera starts
 - Deterministic dungeon: eight unique room roles in one connected layout, with
   the objective at least four edges from the entry
 - Threats: Echo Hunter, Paper Eater, and the server-side threat director
@@ -78,7 +81,9 @@ searched to avoid a bad roll.
 
 Binary spike content can be regenerated idempotently from
 `Scripts/generate_spike_content.py` with UnrealEditor-Cmd and the project's
-editor-only Python plugins.
+editor-only Python plugins. The fixed TechSpike PlayerStarts can be
+re-applied and validated independently with
+`Scripts/configure_tech_spike_player_starts.py`.
 
 ## Network entry paths
 
@@ -298,10 +303,25 @@ The recorded package smokes use raw IP with `-nosteam`. They do not validate
 Steam discovery, Steam connect strings, platform invite acceptance, NAT
 behavior, or voice transport.
 
-Those full automation and packaged smoke records predate the follow-up run
-phase guard and dropped-item presentation fixes. The follow-up code passes UHT
-and C++/Unity compilation, but a linked DLL, automation, and package-smoke rerun
-remain pending until the open editor releases the module DLL.
+The follow-up run-phase guard, dropped-item presentation, and fixed PlayerStart
+work were revalidated on 2026-07-27:
+
+- The PlayerStart Editor Python commandlet found exactly four configured tags
+  at their expected coordinates. A second no-op run reported `changed=0` and
+  left the map hash unchanged.
+- The final Win64 Development Editor build completed UHT, C++ compilation, and
+  DLL linking.
+- `Saved/AutomationReports/PlayerStartFix-Final-20260727-141204` recorded 68
+  clean successes, one successful test with the expected rejection-path
+  warning, and zero failures, not-run, or in-process tests.
+- BuildCookRun completed build, cook, stage, pak/IoStore, package, and archive
+  at `Saved/Packages/PlayerStartFix-Final-20260727-141236`.
+- The final packaged raw-IP two-process smoke at
+  `Saved/Smoke/PlayerStartFix-Final-20260727-141418` exited zero for both
+  processes. It reserved slots 0 and 1 exactly once, completed both automated
+  players, exercised the contested-pickup rejection, committed settlement for
+  two extracted players, and emitted none of the tracked network, ensure, or
+  fatal-error signatures.
 
 ## Current limits
 
