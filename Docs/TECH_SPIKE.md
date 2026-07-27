@@ -1,66 +1,216 @@
-# Scroll Peddler — First Technical Spike
+# Scroll Peddler — Vertical Slice Technical Spike
 
-This spike proves the smallest host-authoritative expedition loop on UE 5.8:
+This document describes the executable technical spike as of 2026-07-27. The
+spike is a host-authoritative UE 5.8 listen-server vertical slice for one to
+four players. It now has two network entry paths:
 
-1. A host opens `/Game/Maps/TechSpike` as a listen server.
-2. Two locally controlled players join through Unreal's raw IP travel.
-3. Each owning pawn requests a server-validated pickup.
-4. The server validates and consumes one scroll instance.
-5. Players reach the extraction overlap.
-6. The server calculates one result per player.
-7. Each owning client writes and reload-verifies its local `SaveGame`.
-8. The server marks settlement committed only after all client acknowledgements match the issued result hashes.
+- Legacy Online Subsystem Steam public lobbies for create, find, indexed join,
+  Quick Play, and platform friend-invite acceptance.
+- Direct IP travel as a development and recovery path, normally forced with
+  `-nosteam`.
 
-The spike intentionally does not call a proprietary backend, Online Services
-or session APIs, a dedicated server, Iris, GAS, or a production inventory UI.
-`OnlineSubsystemUtils` is enabled only for UE's raw `IpNetDriver`; its declared
-engine dependencies are therefore present in the build receipt even though the
-gameplay code uses direct IP travel only.
+Steam lobby code is no longer a future-only placeholder. However, the Steam
+path has only been compiled and covered by deterministic policy tests. A live
+multi-account Steam package run, real friend invite, and voice call have not
+yet been verified and must not be treated as complete.
 
-## Content
+The spike does not use a proprietary backend, a dedicated server, Iris, Online
+Services, GAS, host migration, or a production inventory/lobby UI.
+
+## Proven runtime loop
+
+The current `TechSpike` flow is:
+
+1. The listen-server host loads or creates one of three host-owned campaign
+   slots.
+2. One to four players form a roster through a Steam lobby or raw IP travel.
+3. The server generates and replicates a deterministic eight-room dungeon
+   layout from a seed, including room roles, connections, markers, and a
+   checksum. Runtime graybox floors, labels, and corridors visualize it.
+4. The server spawns four deterministic scroll pickup instances plus generic
+   material, equipment, and large-cargo world items.
+5. Players use the replicated one-hand/four-bag inventory, collect or drop
+   items, and decide whether to consume or preserve scrolls.
+6. Movement and actions publish authoritative noise. Echo Hunter and Paper
+   Eater graybox threats react to players and items, while the threat director
+   uses elapsed time, player count, and recent noise pressure to schedule
+   additional pressure and fear events.
+7. Each player extracts independently. Only that player's carried items are
+   included in the successful outcome; unresolved players become missing.
+8. The host evaluates the runtime delivery contract and atomically commits
+   extracted items, gold, and guild XP to the host campaign. Repeating the same
+   run settlement does not duplicate rewards.
+9. The legacy client result `SaveGame` and acknowledgement remain as a
+   secondary receipt/telemetry path. They are not the source of truth and no
+   longer gate an already committed host campaign transaction.
+
+The normal run phase order is `Preparing -> Expedition (25 minutes) ->
+Collapse (2 minutes) -> Resolution -> Settlement`. Player condition progresses
+through `Normal -> Injured -> Down -> Missing`; repeated Down states use
+45/30/15-second bleed-out windows.
+
+## Runtime content
 
 - Map: `/Game/Maps/TechSpike`
-- Base family: `/Game/Data/Scrolls/DA_Scroll_VeilOfSilence`
+- Playable scroll family:
+  `/Game/Data/Scrolls/DA_Scroll_VeilOfSilence`
 - Engravings: `DA_Engraving_Amplified`, `DA_Engraving_Stable`
-- Instance axes: base family, one selected engraving, D–S quality,
-  contamination, and misfire are represented separately.
+- Four scroll pickups: stable instance IDs, B quality, alternating engravings
+- Generic world items:
+  - `material.paper_scrap` (stack of three)
+  - `equipment.archive_lantern`
+  - `cargo.bound_archive_crate`
+- Deterministic dungeon: eight unique room roles in one connected layout, with
+  the objective at least four edges from the entry
+- Threats: Echo Hunter, Paper Eater, and the server-side threat director
 
-Binary content can be regenerated idempotently from
+The current playable scroll asset resolves to the Resonance/noise-suppression
+family. C++ resolver and application paths also exist for damage, healing,
+protection, movement, and detection, but those five families do not yet have
+playable Data Assets, presentation, or balanced content.
+
+Scroll base family, engraving, D-S quality, contamination, and malfunction are
+kept as separate instance axes. The server rebuilds trusted use state from the
+inventory and deterministically resolves fizzle, delay, direction shift, or
+extra noise before consuming the exact instance once. Client-selected request
+IDs are excluded from the malfunction hash, so retry identifiers cannot be
+searched to avoid a bad roll.
+
+Binary spike content can be regenerated idempotently from
 `Scripts/generate_spike_content.py` with UnrealEditor-Cmd and the project's
 editor-only Python plugins.
 
-## Manual two-player run
+## Network entry paths
 
-In the host console:
+### Legacy OSS Steam lobby
+
+Run packaged Development builds with Steam running and use the in-game console:
 
 ```text
-SPHost 2
+SPCreateLobby 4
 ```
 
-In the second process console:
+This creates a public listen-server lobby and opens `TechSpike` after the
+session succeeds. Other players can search and join:
+
+```text
+SPFindLobbies
+SPJoinLobby 0
+```
+
+Search results and their indices are written to the log. Quick Play searches
+compatible public lobbies and selects the lowest-ping valid candidate:
+
+```text
+SPQuickPlay
+```
+
+Lobby compatibility checks include build ID, rules version, Hub/Expedition
+phase, open slots, joinability, and invite metadata. Starting the expedition
+updates the advertised session so new joins and invites are rejected.
+
+The subsystem also registers the Legacy OSS platform invite-accepted delegate.
+An accepted friend invite is validated against the same metadata and then
+joined; a client destroys its old local session first when required. A host
+already serving a lobby rejects replacement by an incoming invite. There is no
+in-game "send invite" UI yet.
+
+These commands and the invite acceptance path are implemented, but they have
+not yet passed a real two-account Steam end-to-end run. App ID 480 is a
+development setting, not production deployment configuration.
+
+### Raw IP fallback
+
+Use `-nosteam` on every process to force the tested raw IP path. In the host
+console:
+
+```text
+SPHost 4
+```
+
+In each client console:
 
 ```text
 SPJoin 127.0.0.1
 ```
 
-Controls:
+`SPHost` clamps the expected roster to one through four and opens
+`/Game/Maps/TechSpike` as a listen server. `SPJoin` accepts an IP address or
+Unreal travel URL.
 
-- `W/A/S/D`: move
-- Mouse: look
-- `E`: request pickup of the visible scroll under the crosshair
-- `Q`: request use of the first inventory scroll
+Raw IP remains a development fallback rather than a player-facing matchmaking
+flow. In particular, it does not provide a durable platform identity for a
+production reconnect experience.
 
-The first-person crosshair is white by default, cyan over a valid pickup,
-yellow while the request is pending, green after server acceptance, and red
-after a rejection.
+## Controls
 
-The cylindrical extraction marker is on the opposite side of the graybox room.
-Normal extraction is driven by the server-side overlap callback.
+| Input | Action |
+|---|---|
+| `W/A/S/D` | Move |
+| Mouse | Look |
+| `Space` | Jump |
+| Hold `Left Shift` | Sprint |
+| Hold `Left Ctrl` | Crouch |
+| `E` | Interact/pick up the targeted scroll or generic world item |
+| `Q` or `Left Mouse Button` | Use the scroll currently in hand |
+| `1`-`4` | Atomically swap the selected bag slot with the hand |
+| `R` | Begin the 20-second self-treatment action |
+| `G` | Drop the item currently in hand |
+| Hold `V` | Push to talk through the configured legacy voice path |
+| `` ` `` / `~` | Open the developer console |
+
+The crosshair is white by default, cyan over a valid pickup, yellow while a
+pickup request is pending, green after server acceptance, and red after a
+rejection. The HUD also shows run timing, condition, stamina, hand/bag state,
+party readiness, recent chat, carried cargo, and temporary scroll effects.
+
+Large cargo is hand-only. While carrying it, sprint is disabled, movement speed
+is reduced to 72 percent, and movement produces more noise.
+
+Party development commands are also available:
+
+```text
+SPReady true
+SPChat message
+SPKick PlayerId
+SPVoteKick PlayerId
+SPVote VoteId true
+SPMutePlayer PlayerId true
+```
+
+## Authority and reconnect boundaries
+
+Pickup, use, drop, inventory swap, party action, extraction, contract
+evaluation, and campaign settlement are decided by the host. Requests carry an
+ID and, where applicable, an expected revision. Exact replays return their
+recorded result on ledger-backed interaction, inventory, and party paths,
+while conflicting payload reuse is rejected. Exact scroll instances are
+consumed once, so retransmission cannot apply an effect twice. Pickup checks
+include distance, line of sight, ownership, capacity, item identity, and
+single-claim state.
+
+If a rostered player disconnects during the expedition, the same running host
+keeps a reconnect snapshot for 120 seconds. It includes condition, Down state,
+the original absolute server bleed-out deadline, inventory, acquired/consumed
+scroll ledgers, and delivery value. Offline time does not pause or reset
+bleed-out. A player returning with the same online identity can reclaim that
+state; an unrelated late join is a spectator.
+
+A Hub host kick removes the fixed run-roster slot so a replacement identity can
+join. A field vote kick keeps the settlement roster but immediately records a
+terminal Missing outcome, removes reconnect state, and rejects that identity
+if it attempts to return.
+
+This is a server-side restoration foundation, not a complete reconnect
+product. There is no automatic retry/discovery UI, raw IP identities are not
+durable enough for a production guarantee, the host cannot restart and restore
+the in-memory snapshot, and reconnect has not yet passed an end-to-end Steam
+drop/rejoin test.
 
 ## Verification commands
 
-Run the following commands from the repository root. Change `UE_ROOT` if the
-engine is installed elsewhere.
+Run the following from the repository root. Change `UE_ROOT` if the engine is
+installed elsewhere.
 
 ```powershell
 $UE_ROOT = 'C:\Program Files\Epic Games\UE_5.8'
@@ -87,7 +237,7 @@ Development Game:
 Automation:
 
 ```powershell
-$Report = Join-Path $ProjectRoot 'Saved\AutomationReports\TechSpike'
+$Report = Join-Path $ProjectRoot 'Saved\AutomationReports\VerticalSlice'
 
 & "$UE_ROOT\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" `
   $Project -unattended -nop4 -nosplash -nullrhi `
@@ -98,7 +248,7 @@ $Report = Join-Path $ProjectRoot 'Saved\AutomationReports\TechSpike'
 Windows package:
 
 ```powershell
-$PackageRoot = Join-Path $ProjectRoot 'Saved\Packages\Windows'
+$PackageRoot = Join-Path $ProjectRoot 'Saved\Packages\Windows-VerticalSlice'
 
 & "$UE_ROOT\Engine\Build\BatchFiles\RunUAT.bat" BuildCookRun `
   "-project=$Project" -nop4 -utf8output -unattended `
@@ -107,21 +257,83 @@ $PackageRoot = Join-Path $ProjectRoot 'Saved\Packages\Windows'
   -package -archive "-archivedirectory=$PackageRoot"
 ```
 
-`-SPAutoSpike` and `-SPAutoQuit` exist only for unattended Development smoke
-tests. The auto-extraction RPC rejects Shipping builds. Pass a distinct
-`-SPProfileSlot=` value to each same-PC process so they do not share a save
-slot. `-SPAutoContestedPickup` makes each process target the lowest stable
-pickup ID after the expected roster is present, then fall back to the nearest
-available pickup. In non-Shipping builds it also keeps the first claimed actor
-addressable for five seconds, so the second request reaches the server and the
-smoke path deterministically exercises one authoritative pickup rejection.
+### Recorded verification
+
+The 2026-07-27 worktree has the following recorded evidence:
+
+- Win64 Development Editor and Development Game compilation completed.
+- The full `ScrollPeddler` automation report at
+  `Saved/AutomationReports/VerticalSlice-20260727-AuthorityVerified` recorded
+  64 clean successes, one successful test with an expected rejection-path
+  warning, and zero failures or not-run tests.
+- BuildCookRun completed build, cook, stage, pak/IoStore, package, and archive
+  for `TechSpike` at `Saved/Packages/Windows-VerticalSlice`.
+- A packaged `-nosteam` two-process host/client smoke completed with exit code
+  zero for both processes, both auto clients reaching
+  `SP_SPIKE_AUTO_FINISHED`, and host campaign settlement committed.
+- A packaged `-nosteam` four-process smoke completed with exit code zero for
+  the host and all three clients, all four players reaching the automated
+  finish path, four distinct scroll consumptions, and one host campaign
+  settlement for four extracted players.
+
+The final two- and four-process runs used small windowed D3D12 clients rather
+than `-nullrhi`. Neither run emitted `FNetGUIDCache`, saved-move saturation, or
+fatal errors. The four-process run also exposed and then verified the fix for a
+graybox pickup that had been outside one PlayerStart's 350 cm authority range.
+Longer network soak, packet-loss simulation, and cross-machine testing remain
+required.
+
+`-SPAutoSpike`, `-SPAutoContestedPickup`, and `-SPAutoQuit` exist only for
+unattended Development smoke tests. The auto-extraction RPC rejects Shipping
+builds. Give each same-PC process a distinct `-SPProfileSlot=` value so local
+receipts do not share a save slot.
+
+`-SPAutoContestedPickup` first targets the lowest stable pickup ID once the
+expected roster is present, then falls back to the nearest available pickup. In
+non-Shipping builds, it keeps the first claimed actor addressable briefly so a
+second request reaches the server and deterministically exercises an
+authoritative pickup rejection.
+
+The recorded package smokes use raw IP with `-nosteam`. They do not validate
+Steam discovery, Steam connect strings, platform invite acceptance, NAT
+behavior, or voice transport.
 
 ## Current limits
 
-- Joining is direct IP travel; Steam lobby/session integration is a later step.
-- A disconnect during extraction or the save-ack barrier leaves the run
-  incomplete by design; reconnect/resume is not part of this spike.
-- The automated two-process smoke covers the successful replicated loop and
-  disk persistence. Distance, line-of-sight, ownership, duplicate-claim, and
-  consume-once guards are implemented server-side; a broader adversarial
-  multiplayer functional suite remains follow-up work.
+- Manual two-player Listen Server PIE confirmed bidirectional movement,
+  stamina, replicated pickup removal, hand/bag swaps, drop and re-pickup, and
+  single scroll consumption. The first-person hands component still has no
+  skeletal mesh, so no hands are visible.
+- Dropped scrolls are respawned as generic `ASPWorldItem` actors. That actor
+  currently keeps its cube fallback instead of resolving the scroll
+  definition's pickup mesh.
+- Pickup, scroll use, and extraction are currently accepted while the run is
+  still `Preparing`. If every player extracts without first issuing
+  `SPReady true`, extraction reaches the full party count but Resolution and
+  settlement do not begin. Authority validation must reject these actions
+  before `Expedition`.
+- Steam lobby create/find/join/Quick Play and friend-invite acceptance are
+  implemented but have not been validated with separate live Steam accounts.
+- `V` push-to-talk and mute/unmute are wired to the legacy voice path, but live
+  microphone transport, device selection, indicators, and failure UX are
+  unverified.
+- Equipment has only a pure host-authority foundation: Tool/Protection/Utility
+  slots, compatibility, durability, breakage, repair, revision, replay, and
+  conflict tests. It is not integrated into the live Character, RPC,
+  persistence/reconnect snapshot, or HUD. The archive lantern is currently
+  only a carried generic item.
+- Only Veil of Silence has playable scroll content. The other five resolver
+  families still need Data Assets, icons, VFX, SFX, descriptions, and balance.
+- Dungeon markers are generated and replicated, but fixed spike coordinates
+  still drive pickups, generic items, threats, and extraction. The rooms do not
+  yet have production walls, doors, navigation, lighting, or encounter tables.
+- Echo Hunter, Paper Eater, and director decisions are executable graybox
+  behavior. They still use simple movement and lack production navigation,
+  animation, audio, VFX, spawn presentation, and stuck recovery.
+- The HUD is diagnostic. There is no production lobby, inventory, equipment,
+  contract, crafting, reconnect, or settlement UI.
+- Save bytes are verified before and after replacing the final file, and memory
+  rolls back on a failed transaction. A post-replace media/read failure does
+  not yet restore a previous on-disk backup.
+- There is no dedicated server, host migration, cloud-save conflict handling,
+  host-process recovery, or production backend.
