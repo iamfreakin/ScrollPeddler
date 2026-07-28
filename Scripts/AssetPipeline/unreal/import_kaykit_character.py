@@ -507,8 +507,12 @@ def main() -> None:
     )
     validate_only = _has_switch(tokens, "-SPValidateOnly")
     repair_material = _has_switch(tokens, "-SPRepairMaterial")
-    if validate_only and repair_material:
-        _fail("-SPValidateOnly and -SPRepairMaterial cannot be combined")
+    sync_animations = _has_switch(tokens, "-SPSyncAnimations")
+    if sum((validate_only, repair_material, sync_animations)) > 1:
+        _fail(
+            "-SPValidateOnly, -SPRepairMaterial, and -SPSyncAnimations "
+            "cannot be combined"
+        )
     manifest = _read_manifest(manifest_path)
     mesh_source = _validate_source(manifest["mesh"], "mesh")
     texture_source = _validate_source(manifest["texture"], "texture")
@@ -557,9 +561,12 @@ def main() -> None:
     )
     assets_exist = [unreal.EditorAssetLibrary.does_asset_exist(path)
                     for path in expected_assets]
-    if validate_only or repair_material:
+    if validate_only or repair_material or sync_animations:
         if not all(assets_exist):
-            _fail("Validation and repair require all Ranger base assets to exist")
+            _fail(
+                "Validation, repair, and animation sync require all Ranger "
+                "base assets to exist"
+            )
         mesh = _load(unreal_paths["skeletalMesh"], unreal.SkeletalMesh)
         skeleton = _load(unreal_paths["skeleton"], unreal.Skeleton)
         if repair_material:
@@ -574,6 +581,31 @@ def main() -> None:
                     f"{unreal_paths['material']}"
                 )
             operation = "material-repaired"
+        elif sync_animations:
+            imported_clips: list[str] = []
+            for source, clips in animation_sources:
+                missing_clips = [
+                    clip
+                    for clip in clips
+                    if not unreal.EditorAssetLibrary.does_asset_exist(
+                        f"{unreal_paths['animations']}/"
+                        f"{unreal_paths['animationPrefix']}{clip}"
+                    )
+                ]
+                if not missing_clips:
+                    continue
+                _import_animation_set(
+                    source,
+                    missing_clips,
+                    skeleton,
+                    unreal_paths,
+                )
+                imported_clips.extend(missing_clips)
+            operation = (
+                "animations-synced"
+                if imported_clips
+                else "animations-already-current"
+            )
         else:
             operation = "validated"
     else:

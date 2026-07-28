@@ -10,14 +10,17 @@ param(
     [switch]$ValidateOnly,
 
     [Parameter()]
-    [switch]$RepairMaterial
+    [switch]$RepairMaterial,
+
+    [Parameter()]
+    [switch]$SyncAnimations
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-if ($ValidateOnly -and $RepairMaterial) {
-    throw '-ValidateOnly and -RepairMaterial cannot be used together.'
+if (@($ValidateOnly, $RepairMaterial, $SyncAnimations).Where({ $_ }).Count -gt 1) {
+    throw '-ValidateOnly, -RepairMaterial, and -SyncAnimations cannot be used together.'
 }
 
 $repositoryRoot = [System.IO.Path]::GetFullPath(
@@ -63,6 +66,9 @@ if ($ValidateOnly) {
 elseif ($RepairMaterial) {
     $arguments += '-SPRepairMaterial'
 }
+elseif ($SyncAnimations) {
+    $arguments += '-SPSyncAnimations'
+}
 
 Push-Location -LiteralPath $repositoryRoot
 try {
@@ -80,6 +86,9 @@ $mode = if ($ValidateOnly) {
 }
 elseif ($RepairMaterial) {
     'repair-material'
+}
+elseif ($SyncAnimations) {
+    'sync-animations'
 }
 else {
     'import'

@@ -25,5 +25,12 @@
 UE 5.8 에셋 최초 반입은
 `.\Scripts\AssetPipeline\import_kaykit_ranger.ps1`, 무변경 검증은
 `.\Scripts\AssetPipeline\import_kaykit_ranger.ps1 -ValidateOnly`로 실행한다.
+manifest에 방향별 애니메이션처럼 새 clip을 추가한 뒤 기존 Ranger 반입본에
+누락분만 추가할 때는
+`.\Scripts\AssetPipeline\import_kaykit_ranger.ps1 -SyncAnimations`를 사용한다.
+방향 clip 동기화 뒤에는 full Unreal Editor의 Output Log에서
+`py "<repository>/Scripts/AssetPipeline/unreal/configure_kaykit_blend_spaces.py"`를
+실행해 이동·웅크리기 Blend Space를 구성하고 검증한다. 이 스크립트는
+`UnrealEditor-Cmd`가 아니라 asset editor를 열 수 있는 full Editor가 필요하다.
 기존 반입본의 Base Color 그래프만 재생성해야 할 때는
 `.\Scripts\AssetPipeline\import_kaykit_ranger.ps1 -RepairMaterial`을 사용한다.
