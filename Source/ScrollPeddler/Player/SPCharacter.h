@@ -10,10 +10,11 @@
 class ASPScrollPickup;
 class ASPWorldItem;
 class ASPPlayerState;
+class UAnimSequence;
 class UCameraComponent;
+class USkeletalMesh;
 class USkeletalMeshComponent;
 class USPInventoryComponent;
-class UStaticMeshComponent;
 struct FSPItemInstance;
 struct FSPResolvedScrollEffect;
 struct FSPScrollUseResult;
@@ -27,6 +28,7 @@ public:
 	ASPCharacter();
 
 	virtual void Tick(float DeltaSeconds) override;
+	virtual void PostInitializeComponents() override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	virtual void OnJumped_Implementation() override;
@@ -68,8 +70,8 @@ public:
 	ESPPickupResultCode GetLastPickupResult() const { return LastPickupResult; }
 
 	UCameraComponent* GetFirstPersonCamera() const { return FirstPersonCamera; }
-	USkeletalMeshComponent* GetFirstPersonHands() const { return FirstPersonHands; }
-	UStaticMeshComponent* GetRemoteBodyMesh() const { return RemoteBodyMesh; }
+	USkeletalMeshComponent* GetFirstPersonBody() const { return FirstPersonBody; }
+	USkeletalMeshComponent* GetWorldBodyMesh() const { return GetMesh(); }
 
 	UFUNCTION(BlueprintPure, Category = "Scroll Peddler|Movement")
 	float GetStaminaSeconds() const { return StaminaSeconds; }
@@ -142,6 +144,19 @@ protected:
 	void ServerSetSelfTreatment(bool bRequested);
 
 private:
+	enum class EPresentationPose : uint8
+	{
+		Uninitialized,
+		Idle,
+		Walking,
+		Sprinting,
+		CrouchIdle,
+		CrouchMoving,
+		JumpStart,
+		Falling,
+		Landing
+	};
+
 	void MoveForward(float Value);
 	void MoveRight(float Value);
 	void Turn(float Value);
@@ -173,6 +188,11 @@ private:
 	bool CanSprint() const;
 	void UpdateStamina(float DeltaSeconds);
 	void ApplyMovementTuning();
+	void InitializePresentation();
+	void UpdatePresentationAnimation();
+	EPresentationPose ResolvePresentationPose();
+	UAnimSequence* ResolvePresentationAnimation(EPresentationPose Pose) const;
+	static bool IsLoopingPresentationPose(EPresentationPose Pose);
 	void UpdateMovementNoise();
 	void EmitGameplayNoise(FName TagName, float Loudness, float Radius);
 	void CancelSelfTreatment();
@@ -206,14 +226,65 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UCameraComponent> FirstPersonCamera;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<USkeletalMeshComponent> FirstPersonHands;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Presentation", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USkeletalMeshComponent> FirstPersonBody;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<USPInventoryComponent> Inventory;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Presentation", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UStaticMeshComponent> RemoteBodyMesh;
+	UPROPERTY(EditDefaultsOnly, Category = "Presentation|KayKit", meta = (AllowPrivateAccess = "true"))
+	TSoftObjectPtr<USkeletalMesh> BodyMeshAsset;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Presentation|KayKit", meta = (AllowPrivateAccess = "true"))
+	TSoftObjectPtr<UAnimSequence> IdleAnimationAsset;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Presentation|KayKit", meta = (AllowPrivateAccess = "true"))
+	TSoftObjectPtr<UAnimSequence> WalkAnimationAsset;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Presentation|KayKit", meta = (AllowPrivateAccess = "true"))
+	TSoftObjectPtr<UAnimSequence> SprintAnimationAsset;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Presentation|KayKit", meta = (AllowPrivateAccess = "true"))
+	TSoftObjectPtr<UAnimSequence> CrouchIdleAnimationAsset;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Presentation|KayKit", meta = (AllowPrivateAccess = "true"))
+	TSoftObjectPtr<UAnimSequence> CrouchMoveAnimationAsset;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Presentation|KayKit", meta = (AllowPrivateAccess = "true"))
+	TSoftObjectPtr<UAnimSequence> JumpStartAnimationAsset;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Presentation|KayKit", meta = (AllowPrivateAccess = "true"))
+	TSoftObjectPtr<UAnimSequence> FallingAnimationAsset;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Presentation|KayKit", meta = (AllowPrivateAccess = "true"))
+	TSoftObjectPtr<UAnimSequence> LandingAnimationAsset;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Presentation|KayKit", meta = (AllowPrivateAccess = "true"))
+	TArray<FName> FirstPersonHiddenMaterialSlots;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimSequence> IdleAnimation;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimSequence> WalkAnimation;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimSequence> SprintAnimation;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimSequence> CrouchIdleAnimation;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimSequence> CrouchMoveAnimation;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimSequence> JumpStartAnimation;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimSequence> FallingAnimation;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimSequence> LandingAnimation;
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, ReplicatedUsing = OnRep_SilenceEndServerTime, Category = "Effects", meta = (AllowPrivateAccess = "true"))
 	float SilenceEndServerTime = 0.0f;
@@ -239,6 +310,10 @@ private:
 	UPROPERTY(Transient)
 	bool bInteractionDisabled = false;
 
+	EPresentationPose CurrentPresentationPose = EPresentationPose::Uninitialized;
+	bool bPresentationMoving = false;
+	float LandingPresentationEndTime = 0.0f;
+
 	FTimerHandle PickupRequestTimeoutHandle;
 	FTimerHandle SelfTreatmentTimerHandle;
 	uint32 NextPickupRequestId = 1;
@@ -259,6 +334,9 @@ private:
 	static constexpr float WalkSpeed = 450.0f;
 	static constexpr float SprintSpeed = 650.0f;
 	static constexpr float CrouchSpeed = 220.0f;
+	static constexpr float PresentationMoveStartSpeed = 25.0f;
+	static constexpr float PresentationMoveStopSpeed = 8.0f;
+	static constexpr float LandingPresentationDuration = 0.3f;
 	static constexpr float InjuredSpeedMultiplier = 0.85f;
 	static constexpr float LargeCargoSpeedMultiplier = 0.72f;
 	static constexpr float SelfTreatmentSeconds = 20.0f;

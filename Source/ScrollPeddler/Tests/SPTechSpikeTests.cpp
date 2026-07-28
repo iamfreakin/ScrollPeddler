@@ -2,8 +2,11 @@
 
 #include "Misc/AutomationTest.h"
 
+#include "Animation/AnimSequence.h"
+#include "Animation/Skeleton.h"
 #include "Components/BoxComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/PrimitiveComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Core/SPTypes.h"
@@ -11,6 +14,7 @@
 #include "Data/SPScrollDefinition.h"
 #include "Data/SPScrollEngravingDefinition.h"
 #include "Engine/AssetManager.h"
+#include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
 #include "Game/SPGameMode.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -138,17 +142,17 @@ bool FSPFirstPersonPresentationContractTest::RunTest(const FString& Parameters)
 {
 	const ASPCharacter* CharacterCDO = GetDefault<ASPCharacter>();
 	const UCameraComponent* Camera = CharacterCDO->GetFirstPersonCamera();
-	const USkeletalMeshComponent* Hands = CharacterCDO->GetFirstPersonHands();
-	const UStaticMeshComponent* RemoteBody = CharacterCDO->GetRemoteBodyMesh();
+	const USkeletalMeshComponent* FirstPersonBody = CharacterCDO->GetFirstPersonBody();
+	const USkeletalMeshComponent* WorldBody = CharacterCDO->GetWorldBodyMesh();
 	const UCharacterMovementComponent* Movement = CharacterCDO->GetCharacterMovement();
 
 	TestNotNull(TEXT("First-person camera exists"), Camera);
-	TestNotNull(TEXT("First-person hands slot exists"), Hands);
-	TestNotNull(TEXT("Remote body presentation exists"), RemoteBody);
+	TestNotNull(TEXT("First-person body exists"), FirstPersonBody);
+	TestNotNull(TEXT("World body presentation exists"), WorldBody);
 	TestNotNull(TEXT("Character movement exists"), Movement);
 	TestNull(TEXT("Third-person spring arm is removed"),
 		CharacterCDO->FindComponentByClass<USpringArmComponent>());
-	if (!Camera || !Hands || !RemoteBody || !Movement)
+	if (!Camera || !FirstPersonBody || !WorldBody || !Movement)
 	{
 		return false;
 	}
@@ -160,21 +164,115 @@ bool FSPFirstPersonPresentationContractTest::RunTest(const FString& Parameters)
 		Camera->GetAttachParent() == CharacterCDO->GetCapsuleComponent());
 	TestEqual(TEXT("Camera field of view is 90 degrees"), Camera->FieldOfView, 90.0f);
 	TestTrue(TEXT("Camera consumes pawn control rotation"), Camera->bUsePawnControlRotation);
+	TestTrue(TEXT("Native first-person FOV is enabled"),
+		Camera->bEnableFirstPersonFieldOfView);
+	TestEqual(TEXT("First-person body FOV is 70 degrees"),
+		Camera->FirstPersonFieldOfView, 70.0f);
+	TestTrue(TEXT("Native first-person scale is enabled"),
+		Camera->bEnableFirstPersonScale);
+	TestEqual(TEXT("First-person body scale is 0.6"),
+		Camera->FirstPersonScale, 0.6f);
 
-	TestTrue(TEXT("Hands attach below the camera"), Hands->GetAttachParent() == Camera);
-	TestNull(TEXT("Hands intentionally start without an art mesh"), Hands->GetSkeletalMeshAsset());
-	TestTrue(TEXT("Hands render only for their owning player"), Hands->bOnlyOwnerSee);
-	TestFalse(TEXT("Hands do not hide from their owner"), Hands->bOwnerNoSee);
-	TestEqual(TEXT("Hands never participate in collision"),
-		Hands->GetCollisionEnabled(), ECollisionEnabled::NoCollision);
-	TestFalse(TEXT("Hands do not cast shadows"), Hands->CastShadow);
-	TestFalse(TEXT("Hands component does not replicate"), Hands->GetIsReplicated());
+	TestTrue(TEXT("First-person body follows the world body transform"),
+		FirstPersonBody->GetAttachParent() == WorldBody);
+	TestTrue(TEXT("First-person body renders only for its owner"),
+		FirstPersonBody->bOnlyOwnerSee);
+	TestFalse(TEXT("First-person body does not hide from its owner"),
+		FirstPersonBody->bOwnerNoSee);
+	TestEqual(TEXT("First-person body uses native first-person rendering"),
+		FirstPersonBody->FirstPersonPrimitiveType,
+		EFirstPersonPrimitiveType::FirstPerson);
+	TestEqual(TEXT("First-person body never participates in collision"),
+		FirstPersonBody->GetCollisionEnabled(), ECollisionEnabled::NoCollision);
+	TestFalse(TEXT("First-person body component does not replicate"),
+		FirstPersonBody->GetIsReplicated());
+	TestTrue(TEXT("First-person body shares leader bounds"),
+		FirstPersonBody->bUseBoundsFromLeaderPoseComponent);
 
-	TestTrue(TEXT("Remote body hides from its owner"), RemoteBody->bOwnerNoSee);
-	TestFalse(TEXT("Remote body is not owner-only"), RemoteBody->bOnlyOwnerSee);
-	TestEqual(TEXT("Remote body never participates in collision"),
-		RemoteBody->GetCollisionEnabled(), ECollisionEnabled::NoCollision);
-	TestFalse(TEXT("Remote body component does not replicate"), RemoteBody->GetIsReplicated());
+	TestTrue(TEXT("World body hides from its owner"), WorldBody->bOwnerNoSee);
+	TestFalse(TEXT("World body is not owner-only"), WorldBody->bOnlyOwnerSee);
+	TestEqual(TEXT("World body uses world-space first-person representation"),
+		WorldBody->FirstPersonPrimitiveType,
+		EFirstPersonPrimitiveType::WorldSpaceRepresentation);
+	TestEqual(TEXT("World body never participates in collision"),
+		WorldBody->GetCollisionEnabled(), ECollisionEnabled::NoCollision);
+	TestFalse(TEXT("World body component does not replicate"),
+		WorldBody->GetIsReplicated());
+	TestTrue(TEXT("KayKit body is scaled to the capsule"),
+		WorldBody->GetRelativeScale3D().Equals(FVector(0.75f)));
+	TestTrue(TEXT("KayKit feet align to the capsule base"),
+		WorldBody->GetRelativeLocation().Equals(FVector(0.0f, 0.0f, -88.0f)));
+	TestTrue(TEXT("KayKit forward axis is corrected"),
+		WorldBody->GetRelativeRotation().Equals(FRotator(0.0f, -90.0f, 0.0f)));
+
+	const USkeletalMesh* KayKitMesh = LoadObject<USkeletalMesh>(
+		nullptr,
+		TEXT("/Game/Art/ThirdParty/KayKit/Adventurers/Ranger/"
+			"SK_KayKit_Ranger.SK_KayKit_Ranger"));
+	const USkeleton* KayKitSkeleton = LoadObject<USkeleton>(
+		nullptr,
+		TEXT("/Game/Art/ThirdParty/KayKit/Adventurers/Ranger/"
+			"SKEL_KayKit_Rig_Medium.SKEL_KayKit_Rig_Medium"));
+	TestNotNull(TEXT("KayKit Ranger mesh is available"), KayKitMesh);
+	TestNotNull(TEXT("KayKit Rig_Medium skeleton is available"), KayKitSkeleton);
+	if (!KayKitMesh || !KayKitSkeleton)
+	{
+		return false;
+	}
+
+	TestTrue(TEXT("Ranger mesh uses the shared Rig_Medium skeleton"),
+		KayKitMesh->GetSkeleton() == KayKitSkeleton);
+	TestTrue(TEXT("Ranger mesh has a head bone"),
+		KayKitMesh->GetRefSkeleton().FindBoneIndex(TEXT("head")) != INDEX_NONE);
+	TestTrue(TEXT("Ranger mesh has a right-hand attachment bone"),
+		KayKitMesh->GetRefSkeleton().FindBoneIndex(TEXT("handslot_r")) != INDEX_NONE);
+
+	TSet<FName> MaterialSlots;
+	for (const FSkeletalMaterial& Material : KayKitMesh->GetMaterials())
+	{
+		MaterialSlots.Add(Material.MaterialSlotName);
+	}
+	TestTrue(TEXT("Ranger head remains independently hideable"),
+		MaterialSlots.Contains(TEXT("KayKit_Head")));
+	TestTrue(TEXT("Ranger cape remains independently hideable"),
+		MaterialSlots.Contains(TEXT("KayKit_Cape")));
+	TestTrue(TEXT("Ranger quiver remains independently hideable"),
+		MaterialSlots.Contains(TEXT("KayKit_Quiver")));
+
+	const TCHAR* RequiredAnimations[] =
+	{
+		TEXT("Idle_A"),
+		TEXT("Walking_A"),
+		TEXT("Running_A"),
+		TEXT("Crouching"),
+		TEXT("Sneaking"),
+		TEXT("Jump_Start"),
+		TEXT("Jump_Idle"),
+		TEXT("Jump_Land")
+	};
+	for (const TCHAR* AnimationName : RequiredAnimations)
+	{
+		const FString AnimationPath = FString::Printf(
+			TEXT("/Game/Art/ThirdParty/KayKit/Adventurers/Ranger/Animations/"
+				"A_KayKit_%s.A_KayKit_%s"),
+			AnimationName,
+			AnimationName);
+		const UAnimSequence* Animation = LoadObject<UAnimSequence>(
+			nullptr,
+			*AnimationPath);
+		TestNotNull(
+			*FString::Printf(TEXT("KayKit animation %s is available"), AnimationName),
+			Animation);
+		if (Animation)
+		{
+			TestTrue(
+				*FString::Printf(TEXT("%s uses Rig_Medium"), AnimationName),
+				Animation->GetSkeleton() == KayKitSkeleton);
+			TestFalse(
+				*FString::Printf(TEXT("%s keeps root motion disabled"), AnimationName),
+				Animation->HasRootMotion());
+		}
+	}
 	return true;
 }
 

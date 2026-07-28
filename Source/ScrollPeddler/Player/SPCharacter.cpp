@@ -1,15 +1,17 @@
 #include "Player/SPCharacter.h"
 
+#include "Animation/AnimSequence.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/InputComponent.h"
+#include "Components/PrimitiveComponent.h"
 #include "Components/SkeletalMeshComponent.h"
-#include "Components/StaticMeshComponent.h"
 #include "Core/SPRunTypes.h"
 #include "Data/SPScrollFamilyDefinition.h"
 #include "Data/SPScrollDefinition.h"
 #include "Data/SPScrollEngravingDefinition.h"
 #include "Engine/AssetManager.h"
+#include "Engine/SkeletalMesh.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Game/SPGameMode.h"
@@ -24,7 +26,6 @@
 #include "Net/UnrealNetwork.h"
 #include "Player/SPInventoryComponent.h"
 #include "ScrollPeddler.h"
-#include "UObject/ConstructorHelpers.h"
 #include "TimerManager.h"
 #include "World/SPExtractionZone.h"
 #include "World/SPGrayboxThreat.h"
@@ -185,37 +186,81 @@ ASPCharacter::ASPCharacter()
 	FirstPersonCamera->SetRelativeLocation(FVector(0.0f, 0.0f, BaseEyeHeight));
 	FirstPersonCamera->SetFieldOfView(90.0f);
 	FirstPersonCamera->bUsePawnControlRotation = true;
+	FirstPersonCamera->SetEnableFirstPersonFieldOfView(true);
+	FirstPersonCamera->SetFirstPersonFieldOfView(70.0f);
+	FirstPersonCamera->SetEnableFirstPersonScale(true);
+	FirstPersonCamera->SetFirstPersonScale(0.6f);
 
-	FirstPersonHands = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("FirstPersonHands"));
-	FirstPersonHands->SetupAttachment(FirstPersonCamera);
-	FirstPersonHands->SetOnlyOwnerSee(true);
-	FirstPersonHands->SetOwnerNoSee(false);
-	FirstPersonHands->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	FirstPersonHands->SetGenerateOverlapEvents(false);
-	FirstPersonHands->SetCastShadow(false);
-	FirstPersonHands->SetIsReplicated(false);
+	USkeletalMeshComponent* WorldBody = GetMesh();
+	check(WorldBody);
+	WorldBody->SetRelativeLocationAndRotation(
+		FVector(0.0f, 0.0f, -88.0f),
+		FRotator(0.0f, -90.0f, 0.0f));
+	WorldBody->SetRelativeScale3D(FVector(0.75f));
+	WorldBody->SetOnlyOwnerSee(false);
+	WorldBody->SetOwnerNoSee(true);
+	WorldBody->SetFirstPersonPrimitiveType(
+		EFirstPersonPrimitiveType::WorldSpaceRepresentation);
+	WorldBody->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	WorldBody->SetGenerateOverlapEvents(false);
+	WorldBody->SetIsReplicated(false);
+	WorldBody->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+	WorldBody->VisibilityBasedAnimTickOption =
+		EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+
+	FirstPersonBody = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("FirstPersonBody"));
+	FirstPersonBody->SetupAttachment(WorldBody);
+	FirstPersonBody->SetRelativeTransform(FTransform::Identity);
+	FirstPersonBody->SetOnlyOwnerSee(true);
+	FirstPersonBody->SetOwnerNoSee(false);
+	FirstPersonBody->SetFirstPersonPrimitiveType(
+		EFirstPersonPrimitiveType::FirstPerson);
+	FirstPersonBody->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	FirstPersonBody->SetGenerateOverlapEvents(false);
+	FirstPersonBody->SetIsReplicated(false);
+	FirstPersonBody->bUseBoundsFromLeaderPoseComponent = true;
 
 	Inventory = CreateDefaultSubobject<USPInventoryComponent>(TEXT("Inventory"));
 
-	RemoteBodyMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("RemoteBodyMesh"));
-	RemoteBodyMesh->SetupAttachment(RootComponent);
-	RemoteBodyMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	RemoteBodyMesh->SetGenerateOverlapEvents(false);
-	RemoteBodyMesh->SetRelativeScale3D(FVector(0.55f, 0.55f, 1.75f));
-	RemoteBodyMesh->SetOwnerNoSee(true);
-	RemoteBodyMesh->SetOnlyOwnerSee(false);
-	RemoteBodyMesh->SetIsReplicated(false);
+	const FString KayKitRoot =
+		TEXT("/Game/Art/ThirdParty/KayKit/Adventurers/Ranger/");
+	BodyMeshAsset = TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(
+		KayKitRoot + TEXT("SK_KayKit_Ranger.SK_KayKit_Ranger")));
+	IdleAnimationAsset = TSoftObjectPtr<UAnimSequence>(FSoftObjectPath(
+		KayKitRoot + TEXT("Animations/A_KayKit_Idle_A.A_KayKit_Idle_A")));
+	WalkAnimationAsset = TSoftObjectPtr<UAnimSequence>(FSoftObjectPath(
+		KayKitRoot + TEXT("Animations/A_KayKit_Walking_A.A_KayKit_Walking_A")));
+	SprintAnimationAsset = TSoftObjectPtr<UAnimSequence>(FSoftObjectPath(
+		KayKitRoot + TEXT("Animations/A_KayKit_Running_A.A_KayKit_Running_A")));
+	CrouchIdleAnimationAsset = TSoftObjectPtr<UAnimSequence>(FSoftObjectPath(
+		KayKitRoot + TEXT("Animations/A_KayKit_Crouching.A_KayKit_Crouching")));
+	CrouchMoveAnimationAsset = TSoftObjectPtr<UAnimSequence>(FSoftObjectPath(
+		KayKitRoot + TEXT("Animations/A_KayKit_Sneaking.A_KayKit_Sneaking")));
+	JumpStartAnimationAsset = TSoftObjectPtr<UAnimSequence>(FSoftObjectPath(
+		KayKitRoot + TEXT("Animations/A_KayKit_Jump_Start.A_KayKit_Jump_Start")));
+	FallingAnimationAsset = TSoftObjectPtr<UAnimSequence>(FSoftObjectPath(
+		KayKitRoot + TEXT("Animations/A_KayKit_Jump_Idle.A_KayKit_Jump_Idle")));
+	LandingAnimationAsset = TSoftObjectPtr<UAnimSequence>(FSoftObjectPath(
+		KayKitRoot + TEXT("Animations/A_KayKit_Jump_Land.A_KayKit_Jump_Land")));
 
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> DebugCubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
-	if (DebugCubeMesh.Succeeded())
+	FirstPersonHiddenMaterialSlots =
 	{
-		RemoteBodyMesh->SetStaticMesh(DebugCubeMesh.Object);
-	}
+		TEXT("KayKit_Head"),
+		TEXT("KayKit_Cape"),
+		TEXT("KayKit_Quiver")
+	};
+}
+
+void ASPCharacter::PostInitializeComponents()
+{
+	Super::PostInitializeComponents();
+	InitializePresentation();
 }
 
 void ASPCharacter::Tick(const float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	UpdatePresentationAnimation();
 
 	if (HasAuthority() || IsLocallyControlled())
 	{
@@ -231,6 +276,156 @@ void ASPCharacter::Tick(const float DeltaSeconds)
 			CancelSelfTreatment();
 		}
 	}
+}
+
+void ASPCharacter::InitializePresentation()
+{
+	USkeletalMesh* BodyMesh = BodyMeshAsset.LoadSynchronous();
+	if (!BodyMesh || !FirstPersonBody || !GetMesh())
+	{
+		UE_LOG(LogScrollPeddler, Error,
+			TEXT("Character presentation failed to initialize. Character=%s Mesh=%s FirstPersonBody=%s"),
+			*GetNameSafe(this),
+			*GetNameSafe(BodyMesh),
+			*GetNameSafe(FirstPersonBody));
+		return;
+	}
+
+	USkeletalMeshComponent* WorldBody = GetMesh();
+	WorldBody->SetSkeletalMeshAsset(BodyMesh);
+	FirstPersonBody->SetSkeletalMeshAsset(BodyMesh);
+	FirstPersonBody->SetLeaderPoseComponent(WorldBody, false, false);
+
+	for (const FName MaterialSlot : FirstPersonHiddenMaterialSlots)
+	{
+		const int32 MaterialIndex = FirstPersonBody->GetMaterialIndex(MaterialSlot);
+		if (MaterialIndex == INDEX_NONE)
+		{
+			UE_LOG(LogScrollPeddler, Error,
+				TEXT("First-person hidden material slot is missing. Character=%s Slot=%s"),
+				*GetNameSafe(this),
+				*MaterialSlot.ToString());
+			continue;
+		}
+		FirstPersonBody->ShowMaterialSection(
+			MaterialIndex,
+			MaterialIndex,
+			false,
+			0);
+	}
+
+	IdleAnimation = IdleAnimationAsset.LoadSynchronous();
+	WalkAnimation = WalkAnimationAsset.LoadSynchronous();
+	SprintAnimation = SprintAnimationAsset.LoadSynchronous();
+	CrouchIdleAnimation = CrouchIdleAnimationAsset.LoadSynchronous();
+	CrouchMoveAnimation = CrouchMoveAnimationAsset.LoadSynchronous();
+	JumpStartAnimation = JumpStartAnimationAsset.LoadSynchronous();
+	FallingAnimation = FallingAnimationAsset.LoadSynchronous();
+	LandingAnimation = LandingAnimationAsset.LoadSynchronous();
+
+	if (!IdleAnimation || !WalkAnimation || !SprintAnimation
+		|| !CrouchIdleAnimation || !CrouchMoveAnimation
+		|| !JumpStartAnimation || !FallingAnimation || !LandingAnimation)
+	{
+		UE_LOG(LogScrollPeddler, Error,
+			TEXT("One or more KayKit presentation animations failed to load. Character=%s"),
+			*GetNameSafe(this));
+	}
+
+	CurrentPresentationPose = EPresentationPose::Uninitialized;
+	UpdatePresentationAnimation();
+}
+
+void ASPCharacter::UpdatePresentationAnimation()
+{
+	USkeletalMeshComponent* WorldBody = GetMesh();
+	if (!WorldBody || !WorldBody->GetSkeletalMeshAsset())
+	{
+		return;
+	}
+
+	const EPresentationPose DesiredPose = ResolvePresentationPose();
+	if (DesiredPose == CurrentPresentationPose)
+	{
+		return;
+	}
+
+	UAnimSequence* Animation = ResolvePresentationAnimation(DesiredPose);
+	if (!Animation)
+	{
+		return;
+	}
+
+	CurrentPresentationPose = DesiredPose;
+	WorldBody->PlayAnimation(Animation, IsLoopingPresentationPose(DesiredPose));
+}
+
+ASPCharacter::EPresentationPose ASPCharacter::ResolvePresentationPose()
+{
+	const UCharacterMovementComponent* Movement = GetCharacterMovement();
+	if (Movement && Movement->IsFalling())
+	{
+		return GetVelocity().Z > 10.0f
+			? EPresentationPose::JumpStart
+			: EPresentationPose::Falling;
+	}
+
+	if (GetWorld()
+		&& GetWorld()->GetTimeSeconds() < LandingPresentationEndTime)
+	{
+		return EPresentationPose::Landing;
+	}
+
+	const float Speed = GetVelocity().Size2D();
+	bPresentationMoving = bPresentationMoving
+		? Speed > PresentationMoveStopSpeed
+		: Speed > PresentationMoveStartSpeed;
+
+	if (bIsCrouched)
+	{
+		return bPresentationMoving
+			? EPresentationPose::CrouchMoving
+			: EPresentationPose::CrouchIdle;
+	}
+	if (!bPresentationMoving)
+	{
+		return EPresentationPose::Idle;
+	}
+	return bSprinting
+		? EPresentationPose::Sprinting
+		: EPresentationPose::Walking;
+}
+
+UAnimSequence* ASPCharacter::ResolvePresentationAnimation(
+	const EPresentationPose Pose) const
+{
+	switch (Pose)
+	{
+	case EPresentationPose::Walking:
+		return WalkAnimation;
+	case EPresentationPose::Sprinting:
+		return SprintAnimation;
+	case EPresentationPose::CrouchIdle:
+		return CrouchIdleAnimation;
+	case EPresentationPose::CrouchMoving:
+		return CrouchMoveAnimation;
+	case EPresentationPose::JumpStart:
+		return JumpStartAnimation ? JumpStartAnimation : FallingAnimation;
+	case EPresentationPose::Falling:
+		return FallingAnimation;
+	case EPresentationPose::Landing:
+		return LandingAnimation ? LandingAnimation : IdleAnimation;
+	case EPresentationPose::Idle:
+	case EPresentationPose::Uninitialized:
+	default:
+		return IdleAnimation;
+	}
+}
+
+bool ASPCharacter::IsLoopingPresentationPose(const EPresentationPose Pose)
+{
+	return Pose != EPresentationPose::JumpStart
+		&& Pose != EPresentationPose::Landing;
 }
 
 void ASPCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -293,6 +488,11 @@ void ASPCharacter::OnJumped_Implementation()
 void ASPCharacter::Landed(const FHitResult& Hit)
 {
 	Super::Landed(Hit);
+	if (GetWorld())
+	{
+		LandingPresentationEndTime =
+			GetWorld()->GetTimeSeconds() + LandingPresentationDuration;
+	}
 	if (HasAuthority())
 	{
 		const float FallSpeed = FMath::Abs(GetVelocity().Z);
