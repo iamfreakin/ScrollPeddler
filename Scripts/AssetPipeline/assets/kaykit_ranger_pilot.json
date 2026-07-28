@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "assetId": "kaykit-ranger-pilot",
+  "source": {
+    "creator": "Kay Lousberg",
+    "characterPack": "KayKit Adventurers 2.0 Free",
+    "characterUrl": "https://kaylousberg.itch.io/kaykit-adventurers",
+    "animationPack": "KayKit Character Animations 1.1 Free",
+    "animationUrl": "https://kaylousberg.itch.io/kaykit-character-animations",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/"
+  },
+  "mesh": {
+    "path": "SourceAssets/ThirdParty/KayKit/Adventurers_2.0/RangerPilot/Ranger.fbx",
+    "sha256": "0058F761D01D6465717BADB13565F1AD1CFBC3AFA7841B993CC6902E3A9BEA08"
+  },
+  "texture": {
+    "path": "SourceAssets/ThirdParty/KayKit/Adventurers_2.0/RangerPilot/ranger_texture.png",
+    "sha256": "639CD0BA5106FBDF65370B52B9290091D3BD92FE267693ABC8DC474471BB800F"
+  },
+  "animationSets": [
+    {
+      "path": "SourceAssets/ThirdParty/KayKit/Adventurers_2.0/RangerPilot/Animations/Rig_Medium_General.fbx",
+      "sha256": "0A3420D6CBBF00694E625D84E55C2AFBF0A7284C4280C46642F62F066DBD3950",
+      "clips": [
+        "Idle_A",
+        "Interact",
+        "PickUp",
+        "Use_Item"
+      ]
+    },
+    {
+      "path": "SourceAssets/ThirdParty/KayKit/Adventurers_2.0/RangerPilot/Animations/Rig_Medium_MovementBasic.fbx",
+      "sha256": "6B0339D304A07D87AC0A02028D1822078E581924EDDF9C7C7F2049132AD89EC4",
+      "clips": [
+        "Walking_A",
+        "Running_A",
+        "Jump_Start",
+        "Jump_Idle",
+        "Jump_Land"
+      ]
+    },
+    {
+      "path": "SourceAssets/ThirdParty/KayKit/Adventurers_2.0/RangerPilot/Animations/Rig_Medium_MovementAdvanced.fbx",
+      "sha256": "09A2462F554FAE1F36EF083B3EA089626E60F258B09AABDAD4BE2C38012A4F07",
+      "clips": [
+        "Crouching",
+        "Sneaking"
+      ]
+    }
+  ],
+  "unreal": {
+    "root": "/Game/Art/ThirdParty/KayKit/Adventurers/Ranger",
+    "skeletalMesh": "/Game/Art/ThirdParty/KayKit/Adventurers/Ranger/SK_KayKit_Ranger",
+    "skeleton": "/Game/Art/ThirdParty/KayKit/Adventurers/Ranger/SKEL_KayKit_Rig_Medium",
+    "material": "/Game/Art/ThirdParty/KayKit/Adventurers/Ranger/Materials/M_KayKit_Ranger",
+    "texture": "/Game/Art/ThirdParty/KayKit/Adventurers/Ranger/Materials/T_KayKit_Ranger",
+    "animations": "/Game/Art/ThirdParty/KayKit/Adventurers/Ranger/Animations",
+    "animationPrefix": "A_KayKit_"
+  }
+}

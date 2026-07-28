@@ -16,3 +16,14 @@
 - Unreal 대상: `/Game/Art/TestAssets/Props/Scrolls/ScrollPickup/SM_ScrollPickup_TestBlockout`
 
 전체 절차는 [Blender → Unreal 정적 메시 파이프라인](../Docs/ART_PIPELINE.md)을 따른다.
+
+외부 공개 에셋은 `ThirdParty/<제작자 또는 팩>/` 아래에 원본과 출처 문서를
+함께 둔다. 현재 KayKit Ranger 파일럿은
+`ThirdParty/KayKit/Adventurers_2.0/RangerPilot/SOURCE.md`와
+`Scripts/AssetPipeline/assets/kaykit_ranger_pilot.json`을 기준으로 반입한다.
+
+UE 5.8 에셋 최초 반입은
+`.\Scripts\AssetPipeline\import_kaykit_ranger.ps1`, 무변경 검증은
+`.\Scripts\AssetPipeline\import_kaykit_ranger.ps1 -ValidateOnly`로 실행한다.
+기존 반입본의 Base Color 그래프만 재생성해야 할 때는
+`.\Scripts\AssetPipeline\import_kaykit_ranger.ps1 -RepairMaterial`을 사용한다.
