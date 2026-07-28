@@ -11,6 +11,7 @@ public class ScrollPeddler : ModuleRules
 
 		PublicDependencyModuleNames.AddRange(new string[]
 		{
+			"AnimGraphRuntime",
 			"Core",
 			"CoreOnline",
 			"CoreUObject",

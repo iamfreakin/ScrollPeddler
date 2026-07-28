@@ -2,6 +2,7 @@
 
 #include "Misc/AutomationTest.h"
 
+#include "Animation/BlendSpace.h"
 #include "Animation/AnimSequence.h"
 #include "Animation/Skeleton.h"
 #include "Components/BoxComponent.h"
@@ -21,6 +22,7 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "Persistence/SPSaveGame.h"
 #include "Player/SPCharacter.h"
+#include "Player/SPCharacterAnimInstance.h"
 #include "UI/SPHUD.h"
 #include "World/SPScrollPickup.h"
 
@@ -143,7 +145,7 @@ bool FSPFirstPersonPresentationContractTest::RunTest(const FString& Parameters)
 	const ASPCharacter* CharacterCDO = GetDefault<ASPCharacter>();
 	const UCameraComponent* Camera = CharacterCDO->GetFirstPersonCamera();
 	const USkeletalMeshComponent* FirstPersonBody = CharacterCDO->GetFirstPersonBody();
-	const USkeletalMeshComponent* WorldBody = CharacterCDO->GetWorldBodyMesh();
+	USkeletalMeshComponent* WorldBody = CharacterCDO->GetWorldBodyMesh();
 	const UCharacterMovementComponent* Movement = CharacterCDO->GetCharacterMovement();
 
 	TestNotNull(TEXT("First-person camera exists"), Camera);
@@ -198,6 +200,12 @@ bool FSPFirstPersonPresentationContractTest::RunTest(const FString& Parameters)
 		WorldBody->GetCollisionEnabled(), ECollisionEnabled::NoCollision);
 	TestFalse(TEXT("World body component does not replicate"),
 		WorldBody->GetIsReplicated());
+	TestEqual(TEXT("World body uses the native presentation graph"),
+		WorldBody->GetAnimationMode(),
+		EAnimationMode::AnimationBlueprint);
+	TestTrue(TEXT("World body uses the KayKit anim instance"),
+		WorldBody->GetAnimClass()
+			== USPCharacterAnimInstance::StaticClass());
 	TestTrue(TEXT("KayKit body is scaled to the capsule"),
 		WorldBody->GetRelativeScale3D().Equals(FVector(0.75f)));
 	TestTrue(TEXT("KayKit feet align to the capsule base"),
@@ -244,6 +252,9 @@ bool FSPFirstPersonPresentationContractTest::RunTest(const FString& Parameters)
 		TEXT("Idle_A"),
 		TEXT("Walking_A"),
 		TEXT("Running_A"),
+		TEXT("Walking_Backwards"),
+		TEXT("Running_Strafe_Left"),
+		TEXT("Running_Strafe_Right"),
 		TEXT("Crouching"),
 		TEXT("Sneaking"),
 		TEXT("Jump_Start"),
@@ -273,6 +284,94 @@ bool FSPFirstPersonPresentationContractTest::RunTest(const FString& Parameters)
 				Animation->HasRootMotion());
 		}
 	}
+
+	const UBlendSpace* LocomotionBlendSpace = LoadObject<UBlendSpace>(
+		nullptr,
+		TEXT("/Game/Art/ThirdParty/KayKit/Adventurers/Ranger/"
+			"Animations/BS_KayKit_Locomotion.BS_KayKit_Locomotion"));
+	const UBlendSpace* CrouchBlendSpace = LoadObject<UBlendSpace>(
+		nullptr,
+		TEXT("/Game/Art/ThirdParty/KayKit/Adventurers/Ranger/"
+			"Animations/BS_KayKit_Crouch.BS_KayKit_Crouch"));
+	TestNotNull(TEXT("KayKit locomotion Blend Space is available"),
+		LocomotionBlendSpace);
+	TestNotNull(TEXT("KayKit crouch Blend Space is available"),
+		CrouchBlendSpace);
+	if (!LocomotionBlendSpace || !CrouchBlendSpace)
+	{
+		return false;
+	}
+
+	TestTrue(TEXT("Locomotion Blend Space uses Rig_Medium"),
+		LocomotionBlendSpace->GetSkeleton() == KayKitSkeleton);
+	TestEqual(TEXT("Locomotion Blend Space contains calibrated samples"),
+		LocomotionBlendSpace->GetBlendSamples().Num(),
+		9);
+	TestEqual(TEXT("Locomotion X axis is forward speed"),
+		LocomotionBlendSpace->GetBlendParameter(0).DisplayName,
+		FString(TEXT("ForwardSpeed")));
+	TestEqual(TEXT("Locomotion Y axis is right speed"),
+		LocomotionBlendSpace->GetBlendParameter(1).DisplayName,
+		FString(TEXT("RightSpeed")));
+	TestEqual(TEXT("Locomotion X axis supports backward sprint speed"),
+		LocomotionBlendSpace->GetBlendParameter(0).Min,
+		-650.0f);
+	TestEqual(TEXT("Locomotion X axis supports forward sprint speed"),
+		LocomotionBlendSpace->GetBlendParameter(0).Max,
+		650.0f);
+	TestTrue(TEXT("Locomotion sample changes are smoothed"),
+		LocomotionBlendSpace->TargetWeightInterpolationSpeedPerSec > 0.0f);
+
+	TestTrue(TEXT("Crouch Blend Space uses Rig_Medium"),
+		CrouchBlendSpace->GetSkeleton() == KayKitSkeleton);
+	TestEqual(TEXT("Crouch Blend Space contains idle and move samples"),
+		CrouchBlendSpace->GetBlendSamples().Num(),
+		2);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FSPPresentationLocalVelocityTest,
+	"ScrollPeddler.Player.PresentationLocalVelocity",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FSPPresentationLocalVelocityTest::RunTest(
+	const FString& Parameters)
+{
+	const auto TestLocalVelocity =
+		[this](
+			const TCHAR* Label,
+			const FVector& Velocity,
+			const FRotator& ActorRotation,
+			const FVector& Expected)
+		{
+			const FVector Actual =
+				USPCharacterAnimInstance::ResolveActorLocalVelocity(
+					Velocity,
+					ActorRotation);
+			TestTrue(Label, Actual.Equals(Expected));
+		};
+
+	TestLocalVelocity(
+		TEXT("World X is local forward at zero yaw"),
+		FVector(450.0f, 0.0f, 72.0f),
+		FRotator::ZeroRotator,
+		FVector(450.0f, 0.0f, 0.0f));
+	TestLocalVelocity(
+		TEXT("World Y is local forward at ninety-degree yaw"),
+		FVector(0.0f, 450.0f, -80.0f),
+		FRotator(0.0f, 90.0f, 0.0f),
+		FVector(450.0f, 0.0f, 0.0f));
+	TestLocalVelocity(
+		TEXT("Actor-local right remains positive after yaw"),
+		FVector(-325.0f, 0.0f, 0.0f),
+		FRotator(0.0f, 90.0f, 0.0f),
+		FVector(0.0f, 325.0f, 0.0f));
+	TestLocalVelocity(
+		TEXT("Diagonal velocity preserves both Blend Space axes"),
+		FVector(300.0f, -300.0f, 0.0f),
+		FRotator::ZeroRotator,
+		FVector(300.0f, -300.0f, 0.0f));
 	return true;
 }
 

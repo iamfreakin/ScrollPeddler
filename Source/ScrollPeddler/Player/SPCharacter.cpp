@@ -1,6 +1,7 @@
 #include "Player/SPCharacter.h"
 
 #include "Animation/AnimSequence.h"
+#include "Animation/BlendSpace.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/InputComponent.h"
@@ -25,6 +26,7 @@
 #include "Misc/Parse.h"
 #include "Net/UnrealNetwork.h"
 #include "Player/SPInventoryComponent.h"
+#include "Player/SPCharacterAnimInstance.h"
 #include "ScrollPeddler.h"
 #include "TimerManager.h"
 #include "World/SPExtractionZone.h"
@@ -204,7 +206,8 @@ ASPCharacter::ASPCharacter()
 	WorldBody->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	WorldBody->SetGenerateOverlapEvents(false);
 	WorldBody->SetIsReplicated(false);
-	WorldBody->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+	WorldBody->SetAnimInstanceClass(
+		USPCharacterAnimInstance::StaticClass());
 	WorldBody->VisibilityBasedAnimTickOption =
 		EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
 
@@ -226,16 +229,14 @@ ASPCharacter::ASPCharacter()
 		TEXT("/Game/Art/ThirdParty/KayKit/Adventurers/Ranger/");
 	BodyMeshAsset = TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(
 		KayKitRoot + TEXT("SK_KayKit_Ranger.SK_KayKit_Ranger")));
-	IdleAnimationAsset = TSoftObjectPtr<UAnimSequence>(FSoftObjectPath(
-		KayKitRoot + TEXT("Animations/A_KayKit_Idle_A.A_KayKit_Idle_A")));
-	WalkAnimationAsset = TSoftObjectPtr<UAnimSequence>(FSoftObjectPath(
-		KayKitRoot + TEXT("Animations/A_KayKit_Walking_A.A_KayKit_Walking_A")));
-	SprintAnimationAsset = TSoftObjectPtr<UAnimSequence>(FSoftObjectPath(
-		KayKitRoot + TEXT("Animations/A_KayKit_Running_A.A_KayKit_Running_A")));
-	CrouchIdleAnimationAsset = TSoftObjectPtr<UAnimSequence>(FSoftObjectPath(
-		KayKitRoot + TEXT("Animations/A_KayKit_Crouching.A_KayKit_Crouching")));
-	CrouchMoveAnimationAsset = TSoftObjectPtr<UAnimSequence>(FSoftObjectPath(
-		KayKitRoot + TEXT("Animations/A_KayKit_Sneaking.A_KayKit_Sneaking")));
+	LocomotionBlendSpaceAsset = TSoftObjectPtr<UBlendSpace>(FSoftObjectPath(
+		KayKitRoot
+			+ TEXT("Animations/BS_KayKit_Locomotion."
+				"BS_KayKit_Locomotion")));
+	CrouchBlendSpaceAsset = TSoftObjectPtr<UBlendSpace>(FSoftObjectPath(
+		KayKitRoot
+			+ TEXT("Animations/BS_KayKit_Crouch."
+				"BS_KayKit_Crouch")));
 	JumpStartAnimationAsset = TSoftObjectPtr<UAnimSequence>(FSoftObjectPath(
 		KayKitRoot + TEXT("Animations/A_KayKit_Jump_Start.A_KayKit_Jump_Start")));
 	FallingAnimationAsset = TSoftObjectPtr<UAnimSequence>(FSoftObjectPath(
@@ -260,7 +261,6 @@ void ASPCharacter::PostInitializeComponents()
 void ASPCharacter::Tick(const float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	UpdatePresentationAnimation();
 
 	if (HasAuthority() || IsLocallyControlled())
 	{
@@ -314,118 +314,42 @@ void ASPCharacter::InitializePresentation()
 			0);
 	}
 
-	IdleAnimation = IdleAnimationAsset.LoadSynchronous();
-	WalkAnimation = WalkAnimationAsset.LoadSynchronous();
-	SprintAnimation = SprintAnimationAsset.LoadSynchronous();
-	CrouchIdleAnimation = CrouchIdleAnimationAsset.LoadSynchronous();
-	CrouchMoveAnimation = CrouchMoveAnimationAsset.LoadSynchronous();
+	LocomotionBlendSpace =
+		LocomotionBlendSpaceAsset.LoadSynchronous();
+	CrouchBlendSpace = CrouchBlendSpaceAsset.LoadSynchronous();
 	JumpStartAnimation = JumpStartAnimationAsset.LoadSynchronous();
 	FallingAnimation = FallingAnimationAsset.LoadSynchronous();
 	LandingAnimation = LandingAnimationAsset.LoadSynchronous();
 
-	if (!IdleAnimation || !WalkAnimation || !SprintAnimation
-		|| !CrouchIdleAnimation || !CrouchMoveAnimation
+	if (!LocomotionBlendSpace || !CrouchBlendSpace
 		|| !JumpStartAnimation || !FallingAnimation || !LandingAnimation)
 	{
 		UE_LOG(LogScrollPeddler, Error,
 			TEXT("One or more KayKit presentation animations failed to load. Character=%s"),
 			*GetNameSafe(this));
-	}
-
-	CurrentPresentationPose = EPresentationPose::Uninitialized;
-	UpdatePresentationAnimation();
-}
-
-void ASPCharacter::UpdatePresentationAnimation()
-{
-	USkeletalMeshComponent* WorldBody = GetMesh();
-	if (!WorldBody || !WorldBody->GetSkeletalMeshAsset())
-	{
 		return;
 	}
 
-	const EPresentationPose DesiredPose = ResolvePresentationPose();
-	if (DesiredPose == CurrentPresentationPose)
+	WorldBody->SetAnimationMode(
+		EAnimationMode::AnimationBlueprint,
+		true);
+	USPCharacterAnimInstance* PresentationInstance =
+		Cast<USPCharacterAnimInstance>(WorldBody->GetAnimInstance());
+	if (!PresentationInstance)
 	{
+		UE_LOG(LogScrollPeddler, Error,
+			TEXT("KayKit presentation anim instance failed to initialize. Character=%s AnimInstance=%s"),
+			*GetNameSafe(this),
+			*GetNameSafe(WorldBody->GetAnimInstance()));
 		return;
 	}
 
-	UAnimSequence* Animation = ResolvePresentationAnimation(DesiredPose);
-	if (!Animation)
-	{
-		return;
-	}
-
-	CurrentPresentationPose = DesiredPose;
-	WorldBody->PlayAnimation(Animation, IsLoopingPresentationPose(DesiredPose));
-}
-
-ASPCharacter::EPresentationPose ASPCharacter::ResolvePresentationPose()
-{
-	const UCharacterMovementComponent* Movement = GetCharacterMovement();
-	if (Movement && Movement->IsFalling())
-	{
-		return GetVelocity().Z > 10.0f
-			? EPresentationPose::JumpStart
-			: EPresentationPose::Falling;
-	}
-
-	if (GetWorld()
-		&& GetWorld()->GetTimeSeconds() < LandingPresentationEndTime)
-	{
-		return EPresentationPose::Landing;
-	}
-
-	const float Speed = GetVelocity().Size2D();
-	bPresentationMoving = bPresentationMoving
-		? Speed > PresentationMoveStopSpeed
-		: Speed > PresentationMoveStartSpeed;
-
-	if (bIsCrouched)
-	{
-		return bPresentationMoving
-			? EPresentationPose::CrouchMoving
-			: EPresentationPose::CrouchIdle;
-	}
-	if (!bPresentationMoving)
-	{
-		return EPresentationPose::Idle;
-	}
-	return bSprinting
-		? EPresentationPose::Sprinting
-		: EPresentationPose::Walking;
-}
-
-UAnimSequence* ASPCharacter::ResolvePresentationAnimation(
-	const EPresentationPose Pose) const
-{
-	switch (Pose)
-	{
-	case EPresentationPose::Walking:
-		return WalkAnimation;
-	case EPresentationPose::Sprinting:
-		return SprintAnimation;
-	case EPresentationPose::CrouchIdle:
-		return CrouchIdleAnimation;
-	case EPresentationPose::CrouchMoving:
-		return CrouchMoveAnimation;
-	case EPresentationPose::JumpStart:
-		return JumpStartAnimation ? JumpStartAnimation : FallingAnimation;
-	case EPresentationPose::Falling:
-		return FallingAnimation;
-	case EPresentationPose::Landing:
-		return LandingAnimation ? LandingAnimation : IdleAnimation;
-	case EPresentationPose::Idle:
-	case EPresentationPose::Uninitialized:
-	default:
-		return IdleAnimation;
-	}
-}
-
-bool ASPCharacter::IsLoopingPresentationPose(const EPresentationPose Pose)
-{
-	return Pose != EPresentationPose::JumpStart
-		&& Pose != EPresentationPose::Landing;
+	PresentationInstance->ConfigurePresentation(
+		LocomotionBlendSpace,
+		CrouchBlendSpace,
+		JumpStartAnimation,
+		FallingAnimation,
+		LandingAnimation);
 }
 
 void ASPCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -488,11 +412,6 @@ void ASPCharacter::OnJumped_Implementation()
 void ASPCharacter::Landed(const FHitResult& Hit)
 {
 	Super::Landed(Hit);
-	if (GetWorld())
-	{
-		LandingPresentationEndTime =
-			GetWorld()->GetTimeSeconds() + LandingPresentationDuration;
-	}
 	if (HasAuthority())
 	{
 		const float FallSpeed = FMath::Abs(GetVelocity().Z);
