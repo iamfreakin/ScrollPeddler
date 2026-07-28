@@ -293,9 +293,10 @@ private:
 	static constexpr float MaxPickupDistance = 350.0f;
 	static constexpr float MaxStaminaSeconds = 6.0f;
 	static constexpr float StaminaRecoveryPerSecond = 0.75f;
-	static constexpr float WalkSpeed = 450.0f;
-	static constexpr float SprintSpeed = 650.0f;
-	static constexpr float CrouchSpeed = 220.0f;
+	static constexpr float WalkSpeed = 400.0f;
+	static constexpr float SprintSpeed = 500.0f;
+	static constexpr float CrouchSpeed = 100.0f;
+	static constexpr float BackwardSpeed = 120.0f;
 	static constexpr float InjuredSpeedMultiplier = 0.85f;
 	static constexpr float LargeCargoSpeedMultiplier = 0.72f;
 	static constexpr float SelfTreatmentSeconds = 20.0f;

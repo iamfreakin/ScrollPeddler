@@ -51,18 +51,28 @@ class SampleSpec(NamedTuple):
 
 LOCOMOTION_SAMPLES = (
     SampleSpec("Idle_A", 0.0, 0.0),
-    SampleSpec("Walking_A", 450.0, 0.0),
-    SampleSpec("Running_A", 650.0, 0.0),
-    SampleSpec("Walking_Backwards", -450.0, 0.0),
-    SampleSpec("Walking_Backwards", -650.0, 0.0, 650.0 / 450.0),
-    SampleSpec("Running_Strafe_Left", 0.0, -450.0, 450.0 / 650.0),
-    SampleSpec("Running_Strafe_Left", 0.0, -650.0),
-    SampleSpec("Running_Strafe_Right", 0.0, 450.0, 450.0 / 650.0),
-    SampleSpec("Running_Strafe_Right", 0.0, 650.0),
+    # Contact-foot velocity was measured from the imported clips at the
+    # character's 0.75 world-mesh scale. Keep cadence at or below 2.2x, use
+    # the run clip for the 400 cm/s gameplay pace, and reserve the authored
+    # walk for the acceleration shoulder. The forward rates are lower than
+    # the strafe rates because the run clip's measured forward stride is
+    # longer than the strafe clip's measured lateral stride.
+    SampleSpec("Walking_A", 120.0, 0.0, 2.0),
+    SampleSpec("Running_A", 400.0, 0.0, 1.7),
+    SampleSpec("Running_A", 500.0, 0.0, 2.1),
+    SampleSpec("Walking_Backwards", -120.0, 0.0, 2.2),
+    # Pure backward movement is capped at 120 cm/s. This outer duplicate keeps
+    # backward diagonals inside the diamond triangulation so they blend with
+    # strafe instead of being clamped to an asymmetric nearest edge.
+    SampleSpec("Walking_Backwards", -500.0, 0.0, 2.2),
+    SampleSpec("Running_Strafe_Left", 0.0, -400.0, 1.8),
+    SampleSpec("Running_Strafe_Left", 0.0, -500.0, 2.2),
+    SampleSpec("Running_Strafe_Right", 0.0, 400.0, 1.8),
+    SampleSpec("Running_Strafe_Right", 0.0, 500.0, 2.2),
 )
 CROUCH_SAMPLES = (
     SampleSpec("Crouching", 0.0, 0.0),
-    SampleSpec("Sneaking", 220.0, 0.0),
+    SampleSpec("Sneaking", 100.0, 0.0, 2.0),
 )
 
 
@@ -203,6 +213,10 @@ def _configure_common(
     parameters: list[unreal.BlendParameter],
     samples: list[unreal.BlendSample],
 ) -> None:
+    # Clear the old samples before shrinking an axis. The open editor
+    # resamples on every property change, so changing the bounds first would
+    # briefly report the previous edge sample as invalid.
+    _set(asset, "sample_data", [])
     _set(asset, "blend_parameters", parameters)
     _set(asset, "interpolate_using_grid", False)
     _set(asset, "target_weight_interpolation_speed_per_sec",
@@ -220,8 +234,8 @@ def _configure_locomotion(
     sequences: dict[str, unreal.AnimSequence],
 ) -> None:
     parameters = [
-        _axis("ForwardSpeed", -650.0, 650.0, 8),
-        _axis("RightSpeed", -650.0, 650.0, 8),
+        _axis("ForwardSpeed", -500.0, 500.0, 8),
+        _axis("RightSpeed", -500.0, 500.0, 8),
         _unused_axis(),
     ]
     samples = [_sample(sequences[spec.animation_name], spec)
@@ -234,7 +248,7 @@ def _configure_crouch(
     sequences: dict[str, unreal.AnimSequence],
 ) -> None:
     parameters = [
-        _axis("Speed", 0.0, 220.0, 4),
+        _axis("Speed", 0.0, 100.0, 4),
         _unused_axis(),
         _unused_axis(),
     ]
@@ -398,12 +412,12 @@ def main() -> None:
     _configure_crouch(crouch, crouch_sequences)
 
     expected_locomotion_parameters = [
-        _axis("ForwardSpeed", -650.0, 650.0, 8),
-        _axis("RightSpeed", -650.0, 650.0, 8),
+        _axis("ForwardSpeed", -500.0, 500.0, 8),
+        _axis("RightSpeed", -500.0, 500.0, 8),
         _unused_axis(),
     ]
     expected_crouch_parameters = [
-        _axis("Speed", 0.0, 220.0, 4),
+        _axis("Speed", 0.0, 100.0, 4),
         _unused_axis(),
         _unused_axis(),
     ]

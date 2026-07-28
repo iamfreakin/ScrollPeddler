@@ -306,19 +306,19 @@ bool FSPFirstPersonPresentationContractTest::RunTest(const FString& Parameters)
 		LocomotionBlendSpace->GetSkeleton() == KayKitSkeleton);
 	TestEqual(TEXT("Locomotion Blend Space contains calibrated samples"),
 		LocomotionBlendSpace->GetBlendSamples().Num(),
-		9);
+		10);
 	TestEqual(TEXT("Locomotion X axis is forward speed"),
 		LocomotionBlendSpace->GetBlendParameter(0).DisplayName,
 		FString(TEXT("ForwardSpeed")));
 	TestEqual(TEXT("Locomotion Y axis is right speed"),
 		LocomotionBlendSpace->GetBlendParameter(1).DisplayName,
 		FString(TEXT("RightSpeed")));
-	TestEqual(TEXT("Locomotion X axis supports backward sprint speed"),
+	TestEqual(TEXT("Locomotion X axis supports the calibrated backward edge"),
 		LocomotionBlendSpace->GetBlendParameter(0).Min,
-		-650.0f);
-	TestEqual(TEXT("Locomotion X axis supports forward sprint speed"),
+		-500.0f);
+	TestEqual(TEXT("Locomotion X axis supports calibrated sprint speed"),
 		LocomotionBlendSpace->GetBlendParameter(0).Max,
-		650.0f);
+		500.0f);
 	TestTrue(TEXT("Locomotion sample changes are smoothed"),
 		LocomotionBlendSpace->TargetWeightInterpolationSpeedPerSec > 0.0f);
 
@@ -327,6 +327,68 @@ bool FSPFirstPersonPresentationContractTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Crouch Blend Space contains idle and move samples"),
 		CrouchBlendSpace->GetBlendSamples().Num(),
 		2);
+	TestEqual(TEXT("Crouch Blend Space matches gameplay crouch speed"),
+		CrouchBlendSpace->GetBlendParameter(0).Max,
+		100.0f);
+
+	const auto HasCalibratedSample =
+		[](const UBlendSpace* BlendSpace,
+			const TCHAR* AnimationName,
+			const FVector& Position,
+			const float RateScale)
+		{
+			for (const FBlendSample& Sample : BlendSpace->GetBlendSamples())
+			{
+				if (Sample.Animation
+					&& Sample.Animation->GetName() == AnimationName
+					&& Sample.SampleValue.Equals(Position, 0.01f)
+					&& FMath::IsNearlyEqual(
+						Sample.RateScale,
+						RateScale,
+						0.01f))
+				{
+					return true;
+				}
+			}
+			return false;
+		};
+
+	TestTrue(TEXT("Forward pace uses the measured run cadence"),
+		HasCalibratedSample(
+			LocomotionBlendSpace,
+			TEXT("A_KayKit_Running_A"),
+			FVector(400.0f, 0.0f, 0.0f),
+			1.7f));
+	TestTrue(TEXT("Sprint pace stays within the cadence cap"),
+		HasCalibratedSample(
+			LocomotionBlendSpace,
+			TEXT("A_KayKit_Running_A"),
+			FVector(500.0f, 0.0f, 0.0f),
+			2.1f));
+	TestTrue(TEXT("Backward pace matches its gameplay cap"),
+		HasCalibratedSample(
+			LocomotionBlendSpace,
+			TEXT("A_KayKit_Walking_Backwards"),
+			FVector(-120.0f, 0.0f, 0.0f),
+			2.2f));
+	TestTrue(TEXT("Backward outer sample supports diagonal triangulation"),
+		HasCalibratedSample(
+			LocomotionBlendSpace,
+			TEXT("A_KayKit_Walking_Backwards"),
+			FVector(-500.0f, 0.0f, 0.0f),
+			2.2f));
+	TestTrue(TEXT("Strafe pace uses the measured lateral cadence"),
+		HasCalibratedSample(
+			LocomotionBlendSpace,
+			TEXT("A_KayKit_Running_Strafe_Right"),
+			FVector(0.0f, 400.0f, 0.0f),
+			1.8f));
+	TestTrue(TEXT("Crouch pace uses the measured sneak cadence"),
+		HasCalibratedSample(
+			CrouchBlendSpace,
+			TEXT("A_KayKit_Sneaking"),
+			FVector(100.0f, 0.0f, 0.0f),
+			2.0f));
 	return true;
 }
 
@@ -354,14 +416,14 @@ bool FSPPresentationLocalVelocityTest::RunTest(
 
 	TestLocalVelocity(
 		TEXT("World X is local forward at zero yaw"),
-		FVector(450.0f, 0.0f, 72.0f),
+		FVector(400.0f, 0.0f, 72.0f),
 		FRotator::ZeroRotator,
-		FVector(450.0f, 0.0f, 0.0f));
+		FVector(400.0f, 0.0f, 0.0f));
 	TestLocalVelocity(
 		TEXT("World Y is local forward at ninety-degree yaw"),
-		FVector(0.0f, 450.0f, -80.0f),
+		FVector(0.0f, 400.0f, -80.0f),
 		FRotator(0.0f, 90.0f, 0.0f),
-		FVector(450.0f, 0.0f, 0.0f));
+		FVector(400.0f, 0.0f, 0.0f));
 	TestLocalVelocity(
 		TEXT("Actor-local right remains positive after yaw"),
 		FVector(-325.0f, 0.0f, 0.0f),
@@ -372,6 +434,65 @@ bool FSPPresentationLocalVelocityTest::RunTest(
 		FVector(300.0f, -300.0f, 0.0f),
 		FRotator::ZeroRotator,
 		FVector(300.0f, -300.0f, 0.0f));
+
+	const auto TestDiamondInput =
+		[this](
+			const TCHAR* Label,
+			const FVector& LocalVelocity,
+			const FVector& Expected)
+		{
+			const FVector Actual =
+				USPCharacterAnimInstance::ResolveDiamondBlendInput(
+					LocalVelocity);
+			TestTrue(Label, Actual.Equals(Expected, 0.01f));
+			TestTrue(
+				*FString::Printf(
+					TEXT("%s maps planar speed to the diamond ring"),
+					Label),
+				FMath::IsNearlyEqual(
+					FMath::Abs(Actual.X) + FMath::Abs(Actual.Y),
+					LocalVelocity.Size2D(),
+					0.01f));
+		};
+
+	TestDiamondInput(
+		TEXT("Zero velocity remains at the idle sample"),
+		FVector::ZeroVector,
+		FVector::ZeroVector);
+	TestDiamondInput(
+		TEXT("Forward cardinal velocity is unchanged"),
+		FVector(400.0f, 0.0f, 0.0f),
+		FVector(400.0f, 0.0f, 0.0f));
+	TestDiamondInput(
+		TEXT("Backward cardinal velocity is unchanged"),
+		FVector(-120.0f, 0.0f, 0.0f),
+		FVector(-120.0f, 0.0f, 0.0f));
+	TestDiamondInput(
+		TEXT("Right cardinal velocity is unchanged"),
+		FVector(0.0f, 400.0f, 0.0f),
+		FVector(0.0f, 400.0f, 0.0f));
+	TestDiamondInput(
+		TEXT("Left cardinal velocity is unchanged"),
+		FVector(0.0f, -400.0f, 0.0f),
+		FVector(0.0f, -400.0f, 0.0f));
+
+	const float DiagonalComponent = 300.0f / FMath::Sqrt(2.0f);
+	TestDiamondInput(
+		TEXT("Forward-right diagonal stays on its speed ring"),
+		FVector(300.0f, 300.0f, 0.0f),
+		FVector(DiagonalComponent, DiagonalComponent, 0.0f));
+	TestDiamondInput(
+		TEXT("Forward-left diagonal preserves signs"),
+		FVector(300.0f, -300.0f, 0.0f),
+		FVector(DiagonalComponent, -DiagonalComponent, 0.0f));
+	TestDiamondInput(
+		TEXT("Backward-right diagonal preserves signs"),
+		FVector(-300.0f, 300.0f, 0.0f),
+		FVector(-DiagonalComponent, DiagonalComponent, 0.0f));
+	TestDiamondInput(
+		TEXT("Backward-left diagonal preserves signs"),
+		FVector(-300.0f, -300.0f, 0.0f),
+		FVector(-DiagonalComponent, -DiagonalComponent, 0.0f));
 	return true;
 }
 

@@ -38,6 +38,14 @@ public:
 		const FVector& WorldVelocity,
 		const FRotator& ActorRotation);
 
+	/**
+	 * Maps a circular movement velocity onto the cardinal-sample diamond.
+	 * This keeps a constant-speed diagonal on the same Blend Space ring as
+	 * cardinal movement instead of incorrectly selecting the sprint edge.
+	 */
+	static FVector ResolveDiamondBlendInput(
+		const FVector& ActorLocalVelocity);
+
 protected:
 	virtual void NativeInitializeAnimation() override;
 	virtual void NativeUpdateAnimation(float DeltaSeconds) override;

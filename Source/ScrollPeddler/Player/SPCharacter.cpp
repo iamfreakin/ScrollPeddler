@@ -1513,7 +1513,28 @@ void ASPCharacter::MoveForward(float Value)
 	if (Controller && !FMath::IsNearlyZero(Value))
 	{
 		const FRotator YawRotation(0.0f, Controller->GetControlRotation().Yaw, 0.0f);
-		AddMovementInput(FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X), Value);
+		float InputScale = Value;
+		if (Value < 0.0f)
+		{
+			if (bSprinting)
+			{
+				bSprinting = false;
+				ApplyMovementTuning();
+				ServerSetSprinting(false);
+			}
+
+			const UCharacterMovementComponent* Movement =
+				GetCharacterMovement();
+			const float CurrentMaxSpeed =
+				Movement ? Movement->GetMaxSpeed() : WalkSpeed;
+			if (CurrentMaxSpeed > BackwardSpeed)
+			{
+				InputScale *= BackwardSpeed / CurrentMaxSpeed;
+			}
+		}
+		AddMovementInput(
+			FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X),
+			InputScale);
 	}
 }
 
@@ -1725,6 +1746,12 @@ bool ASPCharacter::CanSprint() const
 {
 	if (StaminaSeconds <= KINDA_SMALL_NUMBER || bIsCrouched
 		|| IsCarryingLargeCargo())
+	{
+		return false;
+	}
+
+	const FVector PlanarVelocity(GetVelocity().X, GetVelocity().Y, 0.0f);
+	if (FVector::DotProduct(PlanarVelocity, GetActorForwardVector()) < -10.0f)
 	{
 		return false;
 	}

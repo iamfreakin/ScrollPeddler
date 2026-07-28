@@ -112,6 +112,24 @@ FVector USPCharacterAnimInstance::ResolveActorLocalVelocity(
 	return FVector(LocalVelocity.X, LocalVelocity.Y, 0.0f);
 }
 
+FVector USPCharacterAnimInstance::ResolveDiamondBlendInput(
+	const FVector& ActorLocalVelocity)
+{
+	const FVector PlanarVelocity(
+		ActorLocalVelocity.X,
+		ActorLocalVelocity.Y,
+		0.0f);
+	const float ComponentSum =
+		FMath::Abs(PlanarVelocity.X) + FMath::Abs(PlanarVelocity.Y);
+	if (ComponentSum <= UE_KINDA_SMALL_NUMBER)
+	{
+		return FVector::ZeroVector;
+	}
+
+	const float PlanarSpeed = PlanarVelocity.Size2D();
+	return PlanarVelocity * (PlanarSpeed / ComponentSum);
+}
+
 void USPCharacterAnimInstance::NativeInitializeAnimation()
 {
 	Super::NativeInitializeAnimation();
@@ -133,12 +151,14 @@ void USPCharacterAnimInstance::NativeUpdateAnimation(
 		return;
 	}
 
-	LocomotionBlendInput = ResolveActorLocalVelocity(
+	const FVector ActorLocalVelocity = ResolveActorLocalVelocity(
 		Character->GetVelocity(),
 		Character->GetActorRotation());
+	LocomotionBlendInput =
+		ResolveDiamondBlendInput(ActorLocalVelocity);
 	LocomotionNode.SetPosition(LocomotionBlendInput);
 	CrouchNode.SetPosition(FVector(
-		LocomotionBlendInput.Size2D(),
+		ActorLocalVelocity.Size2D(),
 		0.0f,
 		0.0f));
 
