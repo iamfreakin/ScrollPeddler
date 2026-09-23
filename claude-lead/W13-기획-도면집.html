@@ -1,0 +1,1059 @@
+<title>스크롤 페들러 도면집</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&family=Nanum+Gothic+Coding:wght@400;700&family=Nanum+Pen+Script&display=swap">
+<style>
+:root{
+  --ground:#EEE5D0; --sheet:#F8F2E4; --sheet-2:#EFE4CB; --room:#F3EAD7;
+  --ink:#2A2730; --ink-2:#5E5566; --rule:#C9B690; --rule-2:#DDCFB2;
+  --seal:#B3322B; --seal-ink:#FFF4E8; --wood:#7A4E2D; --wood-l:#C8955A;
+  --water:#2E5E66; --water-soft:rgba(46,94,102,.15); --grid:rgba(122,78,45,.075);
+  --screen:#0E1620; --screen-2:#17232F; --screen-ink:#EDE3CE; --screen-dim:#8E9BA5;
+  --glow:#C8F03C; --stick:#F5A623; --pull:#2DB36B; --bounce:#1FC8D6; --heat:#FF6A1A; --blot:#3D2F8F; --blot-edge:#6B5BD6; --filter:#7EA6E0;
+  --blot-vis:#3D2F8F;
+  --f-disp:"Gowun Batang","Noto Serif KR","Batang",serif;
+  --f-body:"Gowun Dodum","Noto Sans KR","Malgun Gothic",system-ui,sans-serif;
+  --f-hand:"Nanum Pen Script","Gaegu","Comic Sans MS",cursive;
+  --f-mono:"Nanum Gothic Coding","D2Coding",ui-monospace,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#0E1620; --sheet:#142130; --sheet-2:#1A2938; --room:#1B2A3A;
+    --ink:#EDE3CE; --ink-2:#A6AEB2; --rule:#34485A; --rule-2:#26394A;
+    --seal:#E0574C; --seal-ink:#FFF4E8; --wood:#D9A86C; --wood-l:#C8955A;
+    --water:#6FB3BD; --water-soft:rgba(111,179,189,.18); --grid:rgba(200,240,60,.045);
+    --blot-vis:#6B5BD6;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0E1620; --sheet:#142130; --sheet-2:#1A2938; --room:#1B2A3A;
+  --ink:#EDE3CE; --ink-2:#A6AEB2; --rule:#34485A; --rule-2:#26394A;
+  --seal:#E0574C; --seal-ink:#FFF4E8; --wood:#D9A86C; --wood-l:#C8955A;
+  --water:#6FB3BD; --water-soft:rgba(111,179,189,.18); --grid:rgba(200,240,60,.045);
+  --blot-vis:#6B5BD6;
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:var(--f-body); font-size:15.5px; line-height:1.65; word-break:keep-all; overflow-wrap:anywhere;
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:24px 24px;
+}
+.wrap{max-width:1120px; margin:0 auto; padding-inline:clamp(16px,4vw,40px); padding-block:28px 64px}
+h1,h2,h3{font-family:var(--f-disp); text-wrap:balance; margin:0; font-weight:700; letter-spacing:-.01em}
+p{margin:0}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--seal); outline-offset:3px; border-radius:3px}
+
+/* header */
+.mast{display:grid; grid-template-columns:1fr auto; gap:24px; align-items:end; padding-bottom:22px; border-bottom:2px solid var(--ink)}
+.mast .eyebrow{font-family:var(--f-mono); font-size:12px; letter-spacing:.08em; color:var(--ink-2)}
+.mast h1{font-size:clamp(32px,5.4vw,54px); line-height:1.12; margin-top:6px}
+.mast .lede{max-width:62ch; margin-top:12px; color:var(--ink-2)}
+.seal{
+  width:92px; height:92px; background:var(--seal); color:var(--seal-ink); border-radius:12px;
+  display:grid; place-items:center; transform:rotate(-4deg);
+  font-family:var(--f-disp); font-weight:700; font-size:22px; line-height:1.1; text-align:center;
+  box-shadow:inset 0 0 0 4px var(--seal), inset 0 0 0 6px var(--seal-ink);
+}
+.readme{display:flex; flex-wrap:wrap; gap:8px 22px; margin-top:16px; font-size:13.5px; color:var(--ink-2)}
+.readme b{color:var(--ink); font-weight:400; font-family:var(--f-mono); font-size:12.5px}
+
+/* nav */
+.nav{position:sticky; top:env(safe-area-inset-top,0px); z-index:5; background:var(--ground); border-bottom:1px solid var(--rule); margin-inline:calc(-1*clamp(16px,4vw,40px)); padding-inline:clamp(16px,4vw,40px)}
+.nav ol{list-style:none; margin:0; padding:10px 0; display:flex; gap:6px; overflow-x:auto; scrollbar-width:thin}
+.nav a{display:block; white-space:nowrap; text-decoration:none; font-size:13.5px; padding:5px 11px; border:1px solid var(--rule); border-radius:999px; background:var(--sheet)}
+.nav a:hover{border-color:var(--ink)}
+.nav .no{font-family:var(--f-mono); font-size:11.5px; color:var(--seal); margin-right:5px}
+
+/* sheets */
+.sheet{margin-top:44px; background:var(--sheet); border:1px solid var(--rule); scroll-margin-top:64px}
+.tb{display:grid; grid-template-columns:auto 1fr auto; border-bottom:1px solid var(--rule)}
+.tb > div{padding:12px 16px}
+.tb .num{border-right:1px solid var(--rule); font-family:var(--f-mono); font-size:12px; color:var(--ink-2); line-height:1.3}
+.tb .num strong{display:block; font-size:22px; color:var(--seal); font-family:var(--f-disp)}
+.tb h2{font-size:clamp(20px,2.6vw,26px)}
+.tb .sub{font-size:13.5px; color:var(--ink-2); margin-top:2px}
+.tb .meta{border-left:1px solid var(--rule); font-family:var(--f-mono); font-size:11.5px; color:var(--ink-2); line-height:1.6; text-align:right}
+.body{padding:20px 20px 24px; display:grid; gap:20px}
+.cols{display:grid; grid-template-columns:minmax(0,1.55fr) minmax(0,1fr); gap:24px; align-items:start}
+.scroll{overflow-x:auto; -webkit-overflow-scrolling:touch}
+svg{display:block; max-width:100%; height:auto}
+.map{min-width:520px}
+.note{font-family:var(--f-hand); font-size:22px; line-height:1.25; color:var(--ink-2); transform:rotate(-1.2deg); border-left:2px solid var(--seal); padding-left:12px}
+.note small{display:block; font-family:var(--f-body); font-size:11.5px; transform:none; margin-top:4px}
+.facts{display:grid; gap:0; border-top:1px solid var(--rule-2)}
+.facts div{display:grid; grid-template-columns:8.5em 1fr; gap:12px; padding:7px 0; border-bottom:1px solid var(--rule-2); font-size:14px}
+.facts dt,.facts .k{color:var(--ink-2)}
+.num-t{font-variant-numeric:tabular-nums; font-family:var(--f-mono); font-size:13px}
+.legend{display:flex; flex-wrap:wrap; gap:6px 18px; font-size:12.5px; color:var(--ink-2)}
+.legend span{display:inline-flex; align-items:center; gap:6px}
+.sw{display:inline-block; width:22px; height:0; border-top:2px solid var(--ink)}
+.sw.dash{border-top-style:dashed}
+.sw.water{border-top:3px dashed var(--water)}
+.sw.seal{border-top:3px solid var(--seal)}
+.sw.wood{border-top:3px solid var(--wood)}
+
+/* svg classes */
+.m-room{fill:var(--room); stroke:var(--ink); stroke-width:2}
+.m-room2{fill:var(--sheet-2); stroke:var(--ink); stroke-width:1.5}
+.m-wall{stroke:var(--ink); stroke-width:4; fill:none; stroke-linecap:square}
+.m-stn{fill:var(--sheet-2); stroke:var(--wood); stroke-width:1.5}
+.m-path{stroke:var(--ink); stroke-width:1.6; fill:none; stroke-dasharray:6 5}
+.m-solid{stroke:var(--ink); stroke-width:2; fill:none}
+.m-high{stroke:var(--ink); stroke-width:2.5; fill:none}
+.m-low{stroke:var(--water); stroke-width:3; fill:none; stroke-dasharray:7 5}
+.m-water{fill:var(--water-soft); stroke:var(--water); stroke-width:1}
+.m-road{stroke:var(--rule); fill:none; stroke-linecap:round}
+.m-rail{stroke:var(--wood); stroke-width:2; fill:none}
+.m-sleeper{stroke:var(--wood); stroke-width:1.2}
+.m-sealfill{fill:var(--seal)}
+.m-sealline{stroke:var(--seal); stroke-width:4; fill:none}
+.m-echo{fill:none; stroke:var(--seal); stroke-width:1.5; stroke-dasharray:3 3}
+.m-dot{fill:var(--ink)}
+.m-mon{fill:var(--sheet); stroke:var(--ink-2); stroke-width:1.2}
+.m-wind{stroke:var(--ink-2); stroke-width:1.3; fill:none; stroke-dasharray:2 4}
+.t{fill:var(--ink); font-family:var(--f-body); font-size:12px}
+.t-b{fill:var(--ink); font-family:var(--f-disp); font-size:14px; font-weight:700}
+.t-s{fill:var(--ink-2); font-family:var(--f-body); font-size:10.5px}
+.t-d{fill:var(--seal); font-family:var(--f-mono); font-size:10.5px; font-weight:700}
+.t-w{fill:var(--water); font-family:var(--f-mono); font-size:10.5px; font-weight:700}
+.t-m{fill:var(--ink-2); font-family:var(--f-mono); font-size:10px}
+.t-sealink{fill:var(--seal-ink); font-family:var(--f-disp); font-size:11px; font-weight:700}
+
+/* palette */
+.pal{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px}
+.chip{border:1px solid var(--rule); background:var(--sheet); display:grid; grid-template-rows:54px auto}
+.chip .c{border-bottom:1px solid var(--rule)}
+.chip .l{padding:6px 9px 8px; font-size:13px; line-height:1.35}
+.chip .l code{font-family:var(--f-mono); font-size:11.5px; color:var(--ink-2); display:block}
+.chip .l span{font-size:11.5px; color:var(--ink-2)}
+.runes7{display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px}
+.rv{border:1px solid var(--rule); background:var(--sheet); padding:12px; display:grid; grid-template-columns:44px 1fr; gap:10px; align-items:center}
+.rv .dot{width:44px; height:44px; border-radius:50%; display:grid; place-items:center}
+.rv b{font-family:var(--f-disp); font-size:15px; display:block; line-height:1.2}
+.rv code{font-family:var(--f-mono); font-size:11px; color:var(--ink-2)}
+.rv span{font-size:11.5px; color:var(--ink-2)}
+.cloth{display:flex; flex-wrap:wrap; gap:6px}
+.cloth div{display:flex; align-items:center; gap:6px; font-size:12px; padding:3px 8px 3px 3px; border:1px solid var(--rule); background:var(--sheet)}
+.cloth i{width:20px; height:20px; display:block}
+h3{font-size:17px; margin-bottom:10px}
+.h3row{display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap}
+.h3row p{font-size:13px; color:var(--ink-2)}
+
+/* type case */
+.case{display:grid; gap:14px}
+.case-row{display:grid; grid-template-columns:5.5em 1fr; gap:12px; align-items:start}
+.case-row > .lab{font-family:var(--f-disp); font-weight:700; font-size:15px; padding-top:8px}
+.case-row > .lab span{display:block; font-family:var(--f-body); font-weight:400; font-size:12px; color:var(--ink-2)}
+.blocks{display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:8px}
+.blk{border:1px solid var(--rule-2); background:var(--sheet); padding:8px 6px 8px; display:grid; justify-items:center; gap:3px; text-align:center}
+.blk svg{width:48px; height:48px}
+.blk b{font-family:var(--f-disp); font-size:14px; line-height:1.2}
+.blk code{font-family:var(--f-mono); font-size:10.5px; color:var(--ink-2)}
+.day{font-family:var(--f-mono); font-size:10.5px; padding:1px 6px; border-radius:999px; border:1px solid var(--rule); color:var(--ink-2)}
+.day.start{background:var(--ink); color:var(--sheet); border-color:var(--ink)}
+.g-ink{fill:var(--ink)} .g-paper{fill:var(--room)} .g-seal{fill:var(--seal)}
+.gl{fill:none; stroke:#2A2730; stroke-width:2; stroke-linecap:round; stroke-linejoin:round}
+.gl-p{fill:none; stroke:var(--room); stroke-width:2; stroke-linecap:round; stroke-linejoin:round}
+.gl-s{fill:none; stroke:var(--seal-ink); stroke-width:2; stroke-linecap:round; stroke-linejoin:round}
+.gf{fill:#2A2730} .gf-p{fill:var(--room)} .gf-s{fill:var(--seal-ink)}
+
+/* tide bar */
+.tide{display:grid; grid-template-columns:6fr 3fr 2fr 1fr; border:1px solid var(--rule); font-size:12.5px}
+.tide div{padding:8px 10px; border-right:1px solid var(--rule); background:var(--sheet)}
+.tide div:last-child{border-right:0}
+.tide b{display:block; font-family:var(--f-mono); font-size:11.5px; color:var(--water)}
+.tide .w2{background:color-mix(in srgb,var(--water) 12%,var(--sheet))}
+.tide .w3{background:color-mix(in srgb,var(--water) 24%,var(--sheet))}
+.tide .w4{background:color-mix(in srgb,var(--water) 40%,var(--sheet))}
+
+/* screen mocks */
+.screens{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px}
+.screens .wide{grid-column:1/-1}
+.cap{font-size:13px; color:var(--ink-2); margin-top:8px}
+.cap b{color:var(--ink); font-family:var(--f-disp)}
+.paper{background:#F6EEDC; color:#2A2730; border:1px solid #CDB88F; box-shadow:0 1px 0 #CDB88F, 0 8px 18px -12px rgba(42,39,48,.45); font-family:var(--f-body); font-size:13px; line-height:1.55}
+.paper .hd{font-family:var(--f-disp); font-weight:700; font-size:15px; text-align:center; padding:8px 12px; border-bottom:1px dashed #BFA97F}
+.paper .bd{padding:10px 14px 12px}
+.paper .row{display:flex; justify-content:space-between; gap:10px}
+.paper .sec{font-family:var(--f-disp); font-weight:700; margin-top:8px; font-size:13.5px}
+.paper .dim{color:#6E6574}
+.paper .n{font-family:var(--f-mono); font-size:12px; font-variant-numeric:tabular-nums}
+.stamp{display:inline-block; border:2px solid #B3322B; color:#B3322B; font-family:var(--f-disp); font-weight:700; padding:1px 8px; transform:rotate(-6deg); font-size:13px; border-radius:4px}
+.fold{display:inline-block; margin-top:10px; font-size:12px; border:1px solid #BFA97F; padding:2px 10px; background:#EFE3C8}
+.hand{font-family:var(--f-hand); font-size:19px; line-height:1.15}
+.bench{min-width:640px; background:#E4D3B0; border:1px solid #BFA97F; padding:12px; display:grid; gap:10px; color:#2A2730}
+.orderline{background:#F6EEDC; border:1px solid #BFA97F; padding:6px 10px; display:flex; flex-wrap:wrap; gap:6px 14px; align-items:center; font-size:13px}
+.orderline .clip{width:10px; height:18px; background:#7A4E2D; border-radius:2px}
+.orderline .ok{color:#1E7A45; font-family:var(--f-mono); font-size:12px}
+.bench-main{display:grid; grid-template-columns:150px 1fr 190px; gap:12px; align-items:start}
+.drawer{background:#C8955A; border:2px solid #7A4E2D; padding:8px; display:grid; gap:6px}
+.drawer .r{display:flex; gap:4px}
+.drawer i{width:16px; height:16px; display:block; border:1px solid #7A4E2D}
+.drawer i.cir{border-radius:50%}
+.drawer i.sq{background:#2A2730; border-color:#2A2730}
+.drawer i.st{background:#B3322B; border-color:#B3322B; border-radius:3px}
+.drawer i.empty{background:transparent; border-style:dashed; opacity:.8}
+.drawer small{font-size:10.5px; color:#3B2A1C}
+.frame{background:#7A4E2D; padding:14px; border-radius:4px; display:grid; grid-template-columns:repeat(3,1fr); gap:10px; align-self:center}
+.slot{background:#F3EAD7; height:84px; display:grid; place-items:center; border:2px solid #5B3920; font-family:var(--f-disp); font-weight:700; font-size:14px; text-align:center; line-height:1.2}
+.slot .tp{width:46px; height:46px; display:grid; place-items:center; margin:0 auto 4px}
+.slot .tp.cir{border-radius:50%; background:#C8F03C}
+.slot .tp.sq{background:#2A2730}
+.slot .tp.st{background:#B3322B; border-radius:8px}
+.editing{grid-column:1/-1; font-size:11.5px; color:#F3EAD7; font-family:var(--f-mono)}
+.bench-btns{display:flex; flex-wrap:wrap; gap:8px}
+.bench-btns span{background:#F6EEDC; border:1px solid #7A4E2D; padding:4px 10px; font-size:12.5px}
+.bench-btns span.pri{background:#2A2730; color:#F3EAD7}
+
+.hud{min-width:640px; aspect-ratio:16/9; position:relative; background:radial-gradient(ellipse at 62% 58%, rgba(200,240,60,.20), transparent 32%), radial-gradient(ellipse at 20% 80%, rgba(46,94,102,.55), transparent 45%), var(--screen); color:var(--screen-ink); font-family:var(--f-body); font-size:12.5px; overflow:hidden; border:1px solid #000}
+.hud .c{position:absolute; line-height:1.45}
+.hud .tl{top:12px; left:14px}
+.hud .tr{top:10px; right:14px; display:flex; gap:10px; align-items:center}
+.hud .bl{bottom:12px; left:14px}
+.hud .br{bottom:12px; right:14px; text-align:right}
+.hud .mid{top:50%; left:50%; transform:translate(-50%,-50%); text-align:center}
+.hud .lab{font-family:var(--f-mono); font-size:10.5px; color:var(--screen-dim); letter-spacing:.06em}
+.hud .st{display:inline-block; font-family:var(--f-mono); font-size:11px; padding:0 6px; border-radius:3px; background:rgba(237,227,206,.12)}
+.hud .warn{background:rgba(245,166,35,.25); color:#F5C66B}
+.hud .ping{display:flex; gap:4px; margin-top:6px; flex-wrap:wrap}
+.hud .ping span{border:1px solid rgba(237,227,206,.3); padding:0 6px; border-radius:3px; font-size:11px}
+.hud .bag{display:flex; gap:3px; justify-content:flex-end; margin-top:6px}
+.hud .bag i{width:10px; height:22px; border-radius:5px; border:1px solid rgba(237,227,206,.5); display:block}
+.hud .bag i.f{background:#F3EAD7}
+.hud .plate{display:inline-block; border:1px solid rgba(237,227,206,.35); padding:1px 7px; border-radius:3px; margin-left:4px; font-size:11.5px}
+.cross{width:20px; height:20px; margin:0 auto 6px; position:relative}
+.cross::before,.cross::after{content:""; position:absolute; background:var(--screen-ink)}
+.cross::before{left:9px; top:0; width:2px; height:20px}
+.cross::after{top:9px; left:0; height:2px; width:20px}
+.aim{width:120px; height:60px; border:1.5px dashed rgba(200,240,60,.8); border-radius:50%; margin:0 auto; position:absolute; left:50%; top:50%; transform:translate(-50%,-10%)}
+
+.news{background:#F1E7D0; color:#2A2730; border:1px solid #C9B690; padding:14px; font-family:var(--f-body); font-size:12.5px}
+.news .mast2{text-align:center; border-bottom:3px double #2A2730; padding-bottom:6px}
+.news .mast2 b{font-family:var(--f-disp); font-size:22px; display:block; line-height:1.1}
+.news .mast2 span{font-family:var(--f-mono); font-size:10.5px; color:#6E6574}
+.news .photo{margin:10px 0; height:110px; background:linear-gradient(160deg,#2E5E66,#0E1620); position:relative; overflow:hidden}
+.news .photo i{position:absolute; border-radius:50%}
+.news .cols2{display:grid; grid-template-columns:1.3fr 1fr; gap:12px}
+.news h4{font-family:var(--f-disp); margin:0 0 3px; font-size:14px}
+.news p{font-size:12px}
+
+/* table */
+.tbl{width:100%; border-collapse:collapse; font-size:13.5px}
+.tbl th,.tbl td{border-bottom:1px solid var(--rule-2); padding:7px 8px; text-align:left; vertical-align:top}
+.tbl th{font-family:var(--f-disp); font-size:13px; color:var(--ink-2); font-weight:700}
+.tbl td.n{font-family:var(--f-mono); font-size:12.5px; font-variant-numeric:tabular-nums; white-space:nowrap}
+
+.foot{margin-top:44px; font-size:13px; color:var(--ink-2); border-top:2px solid var(--ink); padding-top:14px; display:grid; gap:6px}
+.foot code{font-family:var(--f-mono); font-size:12px}
+
+@media (max-width:820px){
+  .cols{grid-template-columns:1fr}
+  .screens{grid-template-columns:1fr}
+  .tb{grid-template-columns:auto 1fr}
+  .tb .meta{grid-column:1/-1; border-left:0; border-top:1px solid var(--rule); text-align:left}
+}
+@media (max-width:520px){
+  .mast{grid-template-columns:1fr}
+  .seal{width:64px; height:64px; font-size:15px; order:-1}
+  .facts div{grid-template-columns:1fr; gap:0}
+  .case-row{grid-template-columns:1fr}
+  .body{padding:16px 14px 20px}
+  .tide{grid-template-columns:1fr 1fr}
+}
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <div>
+    <div class="eyebrow">SCROLL PEDDLER · 설계 v2.0 + D7 보강 · 2026-09-23</div>
+    <h1>스크롤 페들러 도면집</h1>
+    <p class="lede">기획 문서 W01~W12가 글로 적은 공간과 화면을 그림으로 옮긴 도면 모음입니다. 지도는 문서의 거리 수치로 그렸고, 화면 시안은 W11 배치를 게임의 종이 UI로 입혔습니다. 숫자는 모두 시작값이며 만들어 보고 바뀝니다.</p>
+    <div class="readme"><span><b>지도</b> 위쪽이 북쪽 · 거리는 걷는 길 기준(m)</span><span><b>초</b> 걷기 3m/초 [추정]</span><span><b>[사실]</b> 기존 확정 · <b>[추천]</b> 이번 창작</span></div>
+  </div>
+  <div class="seal" aria-hidden="true">여백<br>공방</div>
+</header>
+
+<nav class="nav" aria-label="도면 목차">
+  <ol>
+    <li><a href="#palette"><span class="no">01</span>팔레트</a></li>
+    <li><a href="#runes"><span class="no">02</span>룬 활자 18</a></li>
+    <li><a href="#workshop"><span class="no">03</span>여백 공방</a></li>
+    <li><a href="#village"><span class="no">04</span>물레목 마을</a></li>
+    <li><a href="#mill"><span class="no">05</span>물레종이소</a></li>
+    <li><a href="#mine"><span class="no">06</span>잉크 광산</a></li>
+    <li><a href="#apiary"><span class="no">07</span>봉랍 양봉장</a></li>
+    <li><a href="#undermill"><span class="no">08</span>심층부</a></li>
+    <li><a href="#screens"><span class="no">09</span>화면 시안</a></li>
+  </ol>
+</nav>
+
+<!-- 01 palette -->
+<section class="sheet" id="palette">
+  <div class="tb">
+    <div class="num">도면<strong>01</strong></div>
+    <div><h2>팔레트</h2><p class="sub">환경은 채도를 낮추고, 룬 7색이 화면에서 가장 진한 색이 됩니다.</p></div>
+    <div class="meta">출처 W10 §1.2<br>D7-45</div>
+  </div>
+  <div class="body">
+    <div>
+      <div class="h3row"><h3>룬 동사 7색</h3><p>룬·먹·효과에만 씁니다. 비슷한 쌍은 모양 기호로 구분합니다.</p></div>
+      <div class="runes7">
+        <div class="rv"><div class="dot" style="background:var(--glow)"><svg viewBox="0 0 24 24" width="28" height="28"><circle cx="12" cy="12" r="3.5" class="gf"/><path class="gl" d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg></div><div><b>빛나라</b><code>#C8F03C · Glow</code><span>빛살</span></div></div>
+        <div class="rv"><div class="dot" style="background:var(--stick)"><svg viewBox="0 0 24 24" width="28" height="28"><path class="gl" d="M4 6h16"/><path class="gf" d="M12 6c0 4-4 6-4 9a4 4 0 0 0 8 0c0-3-4-5-4-9z"/></svg></div><div><b>붙어라</b><code>#F5A623 · Stick</code><span>늘어지는 방울</span></div></div>
+        <div class="rv"><div class="dot" style="background:var(--pull)"><svg viewBox="0 0 24 24" width="28" height="28"><path class="gl" d="M3 8h13v7a3.5 3.5 0 0 1-7 0" /><path class="gl" d="M3 8h2" stroke-dasharray="1 3"/></svg></div><div><b>당겨라</b><code>#2DB36B · Pull</code><span>갈고리와 실</span></div></div>
+        <div class="rv"><div class="dot" style="background:var(--bounce)"><svg viewBox="0 0 24 24" width="28" height="28"><path class="gl" d="M3 19h18M6 19Q12 3 18 19"/></svg></div><div><b>튕겨라</b><code>#1FC8D6 · Bounce</code><span>용수철 반원</span></div></div>
+        <div class="rv"><div class="dot" style="background:var(--heat)"><svg viewBox="0 0 24 24" width="28" height="28"><path class="gf" d="M12 3c4 5 6 8 6 11a6 6 0 0 1-12 0c0-3 2-5 4-8 1 3 2 3 2-3z"/></svg></div><div><b>달궈라</b><code>#FF6A1A · Heat</code><span>불씨</span></div></div>
+        <div class="rv"><div class="dot" style="background:var(--blot); box-shadow:inset 0 0 0 3px var(--blot-edge)"><svg viewBox="0 0 24 24" width="28" height="28"><circle cx="12" cy="10" r="5" fill="none" stroke="#EDE3CE" stroke-width="2"/><path d="M3 13q4.5-3 9 0t9 0V21H3z" fill="#EDE3CE"/></svg></div><div><b>가려라</b><code>#3D2F8F · Blot</code><span>덮는 막 (테두리 #6B5BD6)</span></div></div>
+        <div class="rv"><div class="dot" style="background:var(--filter)"><svg viewBox="0 0 24 24" width="28" height="28"><circle cx="12" cy="12" r="8" class="gl"/><path class="gl" d="M8 5v14M12 4v16M16 5v14M5 9h14M4 12h16M5 15h14"/></svg></div><div><b>걸러라</b><code>#7EA6E0 · Filter</code><span>그물</span></div></div>
+      </div>
+    </div>
+    <div>
+      <div class="h3row"><h3>환경 12색</h3><p>질감 대신 색 면. 던전은 밑색 위에 광원만 진하게.</p></div>
+      <div class="pal">
+        <div class="chip"><div class="c" style="background:#F3EAD7"></div><div class="l">종이 흰<code>#F3EAD7</code><span>종이, UI 바탕</span></div></div>
+        <div class="chip"><div class="c" style="background:#E4D3B0"></div><div class="l">한지 베이지<code>#E4D3B0</code><span>공방 벽, 두루마리</span></div></div>
+        <div class="chip"><div class="c" style="background:#C8955A"></div><div class="l">밝은 나무<code>#C8955A</code><span>작업대, 가구</span></div></div>
+        <div class="chip"><div class="c" style="background:#7A4E2D"></div><div class="l">어두운 나무<code>#7A4E2D</code><span>기둥, 선반</span></div></div>
+        <div class="chip"><div class="c" style="background:#2A2730"></div><div class="l">먹 검정<code>#2A2730</code><span>먹, 글씨, 대상 활자</span></div></div>
+        <div class="chip"><div class="c" style="background:#8E8C86"></div><div class="l">돌 회색<code>#8E8C86</code><span>돌벽, 맷돌</span></div></div>
+        <div class="chip"><div class="c" style="background:#2E5E66"></div><div class="l">강물 청록<code>#2E5E66</code><span>물, 물때</span></div></div>
+        <div class="chip"><div class="c" style="background:#6F8250"></div><div class="l">흐린 이끼<code>#6F8250</code><span>빛나지 않는 풀</span></div></div>
+        <div class="chip"><div class="c" style="background:#4A5A73"></div><div class="l">기와 쪽빛<code>#4A5A73</code><span>지붕</span></div></div>
+        <div class="chip"><div class="c" style="background:#B3322B"></div><div class="l">인주 빨강<code>#B3322B</code><span>수식 활자, 인장</span></div></div>
+        <div class="chip"><div class="c" style="background:#0E1620"></div><div class="l">던전 밑색<code>#0E1620</code><span>던전 어둠</span></div></div>
+        <div class="chip"><div class="c" style="background:#FFD9A0"></div><div class="l">공방 주광<code>#FFD9A0</code><span>따뜻한 햇빛</span></div></div>
+      </div>
+    </div>
+    <div class="cols">
+      <div>
+        <h3>행상단 옷 8색</h3>
+        <div class="cloth">
+          <div><i style="background:#3E4A5C"></i>먹청</div><div><i style="background:#8B5E3C"></i>흙갈</div><div><i style="background:#6C7FA3"></i>연쪽</div><div><i style="background:#8C4A4A"></i>팥</div>
+          <div><i style="background:#B9A15C"></i>연겨자</div><div><i style="background:#D9D4C7"></i>회백</div><div><i style="background:#4E6B4E"></i>솔잎</div><div><i style="background:#6E4A6B"></i>자두</div>
+        </div>
+      </div>
+      <p class="note">룬 색은 물건에 칠하지 말 것. 연두가 보이면 누가 찢은 거다.<small>여백 메모 — 아트 규칙 ④, W10 §0</small></p>
+    </div>
+  </div>
+</section>
+
+<!-- 02 rune type -->
+<section class="sheet" id="runes">
+  <div class="tb">
+    <div class="num">도면<strong>02</strong></div>
+    <div><h2>활자 서랍 18칸</h2><p class="sub">동사는 둥근 활자, 대상은 먹색 네모 활자, 수식은 인주 도장 활자. 서랍이 곧 25일 진행표입니다.</p></div>
+    <div class="meta">출처 W01 §0, W02 §1.3<br>W09 §1, D5 해금표</div>
+  </div>
+  <div class="body">
+    <div class="case">
+      <div class="case-row">
+        <div class="lab">동사 7<span>둥근 활자</span></div>
+        <div class="blocks">
+          <div class="blk"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="21" fill="#C8F03C"/><g transform="translate(12 12)"><circle cx="12" cy="12" r="3.5" class="gf"/><path class="gl" d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></g></svg><b>빛나라</b><code>Glow</code><span class="day start">시작</span></div>
+          <div class="blk"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="21" fill="#F5A623"/><g transform="translate(12 12)"><path class="gl" d="M4 6h16"/><path class="gf" d="M12 6c0 4-4 6-4 9a4 4 0 0 0 8 0c0-3-4-5-4-9z"/></g></svg><b>붙어라</b><code>Stick</code><span class="day start">시작</span></div>
+          <div class="blk"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="21" fill="#7EA6E0"/><g transform="translate(12 12)"><circle cx="12" cy="12" r="8" class="gl"/><path class="gl" d="M8 5v14M12 4v16M16 5v14M5 9h14M4 12h16M5 15h14"/></g></svg><b>걸러라</b><code>Filter</code><span class="day start">시작</span></div>
+          <div class="blk"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="21" fill="#FF6A1A"/><g transform="translate(12 12)"><path class="gf" d="M12 3c4 5 6 8 6 11a6 6 0 0 1-12 0c0-3 2-5 4-8 1 3 2 3 2-3z"/></g></svg><b>달궈라</b><code>Heat</code><span class="day">6일 · E03</span></div>
+          <div class="blk"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="21" fill="#2DB36B"/><g transform="translate(12 12)"><path class="gl" d="M3 8h13v7a3.5 3.5 0 0 1-7 0"/></g></svg><b>당겨라</b><code>Pull</code><span class="day">8일 · E05</span></div>
+          <div class="blk"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="21" fill="#1FC8D6"/><g transform="translate(12 12)"><path class="gl" d="M3 19h18M6 19Q12 3 18 19"/></g></svg><b>튕겨라</b><code>Bounce</code><span class="day">13일 · E07</span></div>
+          <div class="blk"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="21" fill="#3D2F8F" stroke="#6B5BD6" stroke-width="3"/><g transform="translate(12 12)"><circle cx="12" cy="10" r="5" fill="none" stroke="#EDE3CE" stroke-width="2"/><path d="M3 13q4.5-3 9 0t9 0V21H3z" fill="#EDE3CE"/></g></svg><b>가려라</b><code>Blot</code><span class="day">15일 · E09</span></div>
+        </div>
+      </div>
+      <div class="case-row">
+        <div class="lab">대상 6<span>먹색 네모 활자</span></div>
+        <div class="blocks">
+          <div class="blk"><svg viewBox="0 0 48 48"><rect x="4" y="4" width="40" height="40" rx="3" fill="#2A2730"/><g transform="translate(12 12)"><path class="gl-p" d="M12 3l8 4.5v9L12 21l-8-4.5v-9z M4 7.5l8 4.5 8-4.5 M12 12v9"/></g></svg><b>물건</b><code>Thing</code><span class="day start">시작</span></div>
+          <div class="blk"><svg viewBox="0 0 48 48"><rect x="4" y="4" width="40" height="40" rx="3" fill="#2A2730"/><g transform="translate(12 12)"><circle cx="11" cy="9" r="3.2" class="gf-p"/><path class="gl-p" d="M4 21c0-4 3-6.5 7-6.5s7 2.5 7 6.5"/><path class="gl-p" d="M20 3a7 7 0 0 0-5 3M14.6 3.4l.4 2.8 2.7-.2"/></g></svg><b>나</b><code>Me</code><span class="day start">시작</span></div>
+          <div class="blk"><svg viewBox="0 0 48 48"><rect x="4" y="4" width="40" height="40" rx="3" fill="#2A2730"/><g transform="translate(12 12)"><path class="gl-p" d="M2 12h20M4 12l-2 6M8 12l-2 6M12 12l-2 6M16 12l-2 6M20 12l-2 6"/><circle cx="12" cy="6" r="2.4" class="gf-p"/></g></svg><b>바닥</b><code>Floor</code><span class="day">4일 · E02</span></div>
+          <div class="blk"><svg viewBox="0 0 48 48"><rect x="4" y="4" width="40" height="40" rx="3" fill="#2A2730"/><g transform="translate(12 12)"><circle cx="16" cy="9" r="3" class="gf-p"/><path class="gl-p" d="M4 19c0-5 4-7 7-7M16 12c3 0 5 2 5 7"/><path class="gl-p" d="M3 7l5 0M6 4l3 3-3 3"/></g></svg><b>너</b><code>You</code><span class="day">7일 · E04</span></div>
+          <div class="blk"><svg viewBox="0 0 48 48"><rect x="4" y="4" width="40" height="40" rx="3" fill="#2A2730"/><g transform="translate(12 12)"><path class="gl-p" d="M12 2v20M12 4l-5 3M12 9l-5 3M12 14l-5 3M12 19l-5 3"/><circle cx="17" cy="12" r="2.4" class="gf-p"/></g></svg><b>벽</b><code>Wall</code><span class="day">14일 · E08</span></div>
+          <div class="blk"><svg viewBox="0 0 48 48"><rect x="4" y="4" width="40" height="40" rx="3" fill="#2A2730"/><g transform="translate(12 12)" class="gf-p"><circle cx="12" cy="12" r="2.6"/><circle cx="12" cy="3" r="1.8"/><circle cx="12" cy="21" r="1.8"/><circle cx="4.2" cy="7.5" r="1.8"/><circle cx="19.8" cy="7.5" r="1.8"/><circle cx="4.2" cy="16.5" r="1.8"/><circle cx="19.8" cy="16.5" r="1.8"/></g></svg><b>주변</b><code>Around</code><span class="day">18일 · E11</span></div>
+        </div>
+      </div>
+      <div class="case-row">
+        <div class="lab">수식 5<span>인주 도장 활자</span></div>
+        <div class="blocks">
+          <div class="blk"><svg viewBox="0 0 48 48"><rect x="6" y="6" width="36" height="36" rx="9" fill="#B3322B"/><g transform="translate(12 12)"><circle cx="12" cy="12" r="8" class="gl-s"/><path class="gl-s" d="M12 12V7"/></g></svg><b>잠깐</b><code>Brief</code><span class="day start">시작</span></div>
+          <div class="blk"><svg viewBox="0 0 48 48"><rect x="6" y="6" width="36" height="36" rx="9" fill="#B3322B"/><g transform="translate(12 12)"><path class="gl-s" d="M6 3h12M6 21h12M7 3c0 5 10 7 10 9s-10 4-10 9M17 3c0 5-10 7-10 9s10 4 10 9"/></g></svg><b>오래</b><code>Long</code><span class="day">2일 · E01</span></div>
+          <div class="blk"><svg viewBox="0 0 48 48"><rect x="6" y="6" width="36" height="36" rx="9" fill="#B3322B"/><g transform="translate(12 12)"><circle cx="5" cy="12" r="2" class="gf-s"/><path class="gl-s" d="M10 7a7 7 0 0 1 0 10M14 4a11 11 0 0 1 0 16M18 2a14 14 0 0 1 0 20"/></g></svg><b>넓게</b><code>Wide</code><span class="day">10일 · E06</span></div>
+          <div class="blk"><svg viewBox="0 0 48 48"><rect x="6" y="6" width="36" height="36" rx="9" fill="#B3322B"/><g transform="translate(12 12)"><path class="gl-s" d="M5 13l7-7 7 7M5 20l7-7 7 7"/></g></svg><b>세게</b><code>Hard</code><span class="day">17일 · E10</span></div>
+          <div class="blk"><svg viewBox="0 0 48 48"><rect x="6" y="6" width="36" height="36" rx="9" fill="#B3322B"/><g transform="translate(12 12)"><path class="gl-s" d="M2 12h3M8 12h3M14 12h7M17 8l4 4-4 4"/></g></svg><b>멀리</b><code>Far</code><span class="day">21일 · E12</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="cols">
+      <table class="tbl">
+        <thead><tr><th>막</th><th>서랍에 찬 활자</th><th>새로 찬 것</th></tr></thead>
+        <tbody>
+          <tr><td>프롤로그</td><td class="n">6 / 18</td><td>남아 있던 나무 활자 6개</td></tr>
+          <tr><td>1막 1~5일</td><td class="n">8 / 18</td><td>오래 · 바닥</td></tr>
+          <tr><td>2막 6~12일</td><td class="n">12 / 18</td><td>달궈라 · 너 · 당겨라 · 넓게</td></tr>
+          <tr><td>3막 13~20일</td><td class="n">17 / 18</td><td>튕겨라 · 벽 · 가려라 · 세게 · 주변</td></tr>
+          <tr><td>4막 21일</td><td class="n">18 / 18</td><td>멀리. 23·24일은 복습 잔향(E13·E14)</td></tr>
+        </tbody>
+      </table>
+      <p class="note">빈칸은 채우라고 있는 것.<small>활자 서랍 뚜껑 안쪽의 옛 글씨 — W01 §3</small></p>
+    </div>
+  </div>
+</section>
+
+<!-- 03 workshop -->
+<section class="sheet" id="workshop">
+  <div class="tb">
+    <div class="num">도면<strong>03</strong></div>
+    <div><h2>여백 공방 — 1층 배치</h2><p class="sub">본실 18×16m + 시험 옆방 6×6m. 가운데를 비운 사각 순환길 바깥에 네 공정이 붙습니다.</p></div>
+    <div class="meta">축척 1칸=1m<br>출처 T3 §1.1, W02 §1</div>
+  </div>
+  <div class="body">
+    <div class="cols">
+      <div class="scroll">
+        <svg class="map" viewBox="0 0 560 430" role="img" aria-label="여백 공방 배치도: 남쪽 정문 E에서 4미터 앞 교차점 J, 남서 A 응대, 북서 B 먹, 북동 C 조판·인쇄, 남동 D 검사·봉인, 북동쪽 바깥에 시험 옆방">
+          <!-- room -->
+          <rect x="40" y="40" width="360" height="320" class="m-room"/>
+          <rect x="400" y="40" width="120" height="120" class="m-room2"/>
+          <!-- grid ticks every 1m inside room (light) -->
+          <g stroke="var(--rule-2)" stroke-width=".6">
+            <path d="M60 40v320M80 40v320M100 40v320M120 40v320M140 40v320M160 40v320M180 40v320M200 40v320M220 40v320M240 40v320M260 40v320M280 40v320M300 40v320M320 40v320M340 40v320M360 40v320M380 40v320"/>
+            <path d="M40 60h360M40 80h360M40 100h360M40 120h360M40 140h360M40 160h360M40 180h360M40 200h360M40 220h360M40 240h360M40 260h360M40 280h360M40 300h360M40 320h360M40 340h360"/>
+          </g>
+          <!-- walls with openings -->
+          <path class="m-wall" d="M40 360H190M250 360H400V160M400 110V40H40V360"/>
+          <path class="m-wall" d="M400 40H520V160H400"/>
+          <!-- door gap marks -->
+          <text x="220" y="382" class="t-b" text-anchor="middle">E 정문</text>
+          <text x="220" y="398" class="t-s" text-anchor="middle">출정 준비대 · 폭 3m</text>
+          <!-- stations -->
+          <rect x="48" y="248" width="56" height="74" class="m-stn"/>
+          <text x="76" y="278" class="t-b" text-anchor="middle">A</text>
+          <text x="76" y="294" class="t-s" text-anchor="middle">응대·장부</text>
+          <text x="76" y="308" class="t-s" text-anchor="middle">손님 종·돈통</text>
+          <rect x="60" y="48" width="120" height="50" class="m-stn"/>
+          <text x="120" y="70" class="t-b" text-anchor="middle">B 먹·재료</text>
+          <text x="120" y="86" class="t-s" text-anchor="middle">재료 서랍 · 맷돌 벼루</text>
+          <rect x="240" y="48" width="150" height="50" class="m-stn"/>
+          <text x="315" y="70" class="t-b" text-anchor="middle">C 조판·인쇄</text>
+          <text x="315" y="86" class="t-s" text-anchor="middle">활자 서랍 · 판틀 2 · 인쇄기</text>
+          <rect x="336" y="248" width="56" height="74" class="m-stn"/>
+          <text x="364" y="278" class="t-b" text-anchor="middle">D</text>
+          <text x="364" y="294" class="t-s" text-anchor="middle">검사·봉인</text>
+          <text x="364" y="308" class="t-s" text-anchor="middle">납품 상자</text>
+          <!-- wall features -->
+          <path d="M40 180V236" class="m-sealline"/>
+          <text x="48" y="212" class="t-s">후기 벽</text>
+          <path d="M400 290V352" stroke="var(--wood)" stroke-width="6"/>
+          <text x="394" y="284" class="t-s" text-anchor="end">진열대</text>
+          <path d="M190 40h50" stroke="var(--wood)" stroke-width="6"/>
+          <text x="215" y="34" class="t-s" text-anchor="middle">판 선반</text>
+          <rect x="154" y="326" width="30" height="24" class="m-stn"/>
+          <text x="150" y="342" class="t-s" text-anchor="end">탐험 선반</text>
+          <!-- test room -->
+          <text x="460" y="62" class="t-b" text-anchor="middle">시험 옆방</text>
+          <rect x="492" y="80" width="10" height="44" class="m-sealfill"/>
+          <text x="486" y="100" class="t-s" text-anchor="end">시험판</text>
+          <circle cx="460" cy="120" r="7" class="m-mon"/>
+          <text x="460" y="143" class="t-s" text-anchor="middle">멀쩡이</text>
+          <rect x="408" y="140" width="22" height="12" class="m-stn"/>
+          <text x="404" y="176" class="t-s">기록대 680G</text>
+          <!-- circulation -->
+          <path class="m-path" d="M220 360V280M140 280V140H300V280H140"/>
+          <path class="m-path" d="M300 132H400L470 110"/>
+          <circle cx="220" cy="280" r="5" class="m-dot"/>
+          <text x="228" y="274" class="t-b">J</text>
+          <circle cx="140" cy="280" r="4" class="m-dot"/><circle cx="140" cy="140" r="4" class="m-dot"/><circle cx="300" cy="140" r="4" class="m-dot"/><circle cx="300" cy="280" r="4" class="m-dot"/>
+          <!-- distances -->
+          <text x="226" y="326" class="t-d">4m</text>
+          <text x="176" y="296" class="t-d">4m</text>
+          <text x="254" y="296" class="t-d">4m</text>
+          <text x="146" y="214" class="t-d">7m</text>
+          <text x="220" y="156" class="t-d" text-anchor="middle">8m</text>
+          <text x="306" y="214" class="t-d">7m</text>
+          <text x="362" y="126" class="t-d">6m → 시험판</text>
+          <text x="220" y="214" class="t-s" text-anchor="middle">가운데는 비워 둠</text>
+          <text x="220" y="228" class="t-s" text-anchor="middle">— 동료가 다 보인다</text>
+          <!-- north arrow -->
+          <g transform="translate(530 360)"><path d="M0 -26l7 18h-14z" class="m-dot"/><text x="0" y="6" class="t-m" text-anchor="middle">N</text></g>
+          <!-- scale -->
+          <g transform="translate(40 414)"><path d="M0 0h100" stroke="var(--ink)" stroke-width="2"/><path d="M0 -4v8M100 -4v8M50 -3v6" stroke="var(--ink)" stroke-width="1.5"/><text x="108" y="4" class="t-m">5m</text></g>
+        </svg>
+      </div>
+      <div style="display:grid; gap:16px">
+        <div class="facts">
+          <div><span class="k">정문→A·D</span><span class="num-t">8m · 5초</span></div>
+          <div><span class="k">정문→B·C</span><span class="num-t">15m · 7초</span></div>
+          <div><span class="k">정문→시험판</span><span class="num-t">21m · 9초 (기준 15초)</span></div>
+          <div><span class="k">순환길 폭</span><span class="num-t">2.4m · 정문과 J 3m</span></div>
+          <div><span class="k">들고 옮기는 것</span><span>주문지·먹병·판·스크롤 묶음·납품 상자</span></div>
+          <div><span class="k">2층 (선택)</span><span>300G로 개방. 꾸미기·사진첩·기념품. 능력치 없음</span></div>
+        </div>
+        <p class="note">종이 울리면 누구든 받을 것.<br>— '누구든'은 보통 '아무도'가 됨.<small>손님 종 여백 메모 — W08c §5</small></p>
+        <div class="legend"><span><i class="sw dash"></i>순환길</span><span><i class="sw seal"></i>후기 벽·시험판</span><span><i class="sw wood"></i>선반·진열대</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 04 village -->
+<section class="sheet" id="village">
+  <div class="tb">
+    <div class="num">도면<strong>04</strong></div>
+    <div><h2>물레목 마을 — 중심 마당</h2><p class="sub">공방–마당–출정문이 남북 주길. 하루 마을 이동은 120초 안.</p></div>
+    <div class="meta">축척 개념도(거리는 실제 값)<br>출처 T3 §2.1~2.3</div>
+  </div>
+  <div class="body">
+    <div class="cols">
+      <div class="scroll">
+        <svg class="map" viewBox="0 0 520 540" role="img" aria-label="물레목 마을 지도: 중심 마당 P, 남쪽 공방, 서쪽 리네 상점, 동쪽 게시판, 북서 에다 수레, 북동 보린 작업대, 북쪽 도토 관측 자리와 출정문 G, 그 너머 물레종이소 입구">
+          <!-- river -->
+          <path d="M0 60 C120 40 200 110 300 80 S480 30 520 60 V100 C460 80 400 130 300 120 S120 90 0 100z" class="m-water"/>
+          <text x="470" y="70" class="t-w">강 · 물레</text>
+          <!-- main road -->
+          <path class="m-road" stroke-width="22" d="M260 470V90"/>
+          <path class="m-road" stroke-width="16" d="M260 398H188M260 398H314M260 398L222 360M260 398L316 342"/>
+          <!-- P -->
+          <circle cx="260" cy="398" r="26" fill="var(--sheet-2)" stroke="var(--ink)" stroke-width="1.5"/>
+          <text x="260" y="402" class="t-b" text-anchor="middle">P</text>
+          <text x="296" y="422" class="t-s">중심 마당</text>
+          <!-- workshop -->
+          <rect x="222" y="458" width="76" height="46" class="m-stn"/>
+          <text x="260" y="480" class="t-b" text-anchor="middle">여백 공방</text>
+          <text x="260" y="496" class="t-s" text-anchor="middle">P 남쪽 12m</text>
+          <!-- rine -->
+          <rect x="120" y="378" width="66" height="40" class="m-stn"/>
+          <text x="153" y="396" class="t" text-anchor="middle">리네 상점</text>
+          <text x="153" y="411" class="t-d" text-anchor="middle">24m · 8초</text>
+          <!-- board -->
+          <rect x="316" y="380" width="62" height="36" class="m-stn"/>
+          <text x="347" y="396" class="t" text-anchor="middle">게시판</text>
+          <text x="347" y="410" class="t-d" text-anchor="middle">21m · 7초</text>
+          <!-- eda -->
+          <rect x="176" y="336" width="54" height="30" class="m-stn"/>
+          <text x="203" y="350" class="t" text-anchor="middle">에다 수레</text>
+          <text x="203" y="362" class="t-d" text-anchor="middle">21m</text>
+          <!-- borin -->
+          <rect x="312" y="316" width="64" height="32" class="m-stn"/>
+          <text x="344" y="331" class="t" text-anchor="middle">보린 작업대</text>
+          <text x="344" y="343" class="t-d" text-anchor="middle">27m · 9초</text>
+          <path d="M380 332h56M436 332v-60" stroke="var(--wood)" stroke-width="5" fill="none"/>
+          <text x="442" y="300" class="t-s">골목·건조관</text>
+          <text x="442" y="314" class="t-s">(1막 젖는 골목)</text>
+          <!-- doto -->
+          <rect x="276" y="276" width="62" height="28" class="m-stn"/>
+          <text x="307" y="290" class="t" text-anchor="middle">도토 관측</text>
+          <text x="307" y="300" class="t-d" text-anchor="middle">30m</text>
+          <!-- guild outpost -->
+          <rect x="378" y="420" width="70" height="30" class="m-room2"/>
+          <text x="413" y="439" class="t-s" text-anchor="middle">길드 출장소</text>
+          <!-- gate -->
+          <rect x="226" y="176" width="68" height="18" class="m-sealfill"/>
+          <text x="260" y="189" class="t-sealink" text-anchor="middle">출정문 G</text>
+          <text x="302" y="190" class="t-d">48m · 16초</text>
+          <rect x="222" y="198" width="76" height="36" fill="none" stroke="var(--ink-2)" stroke-dasharray="3 3"/>
+          <text x="260" y="220" class="t-s" text-anchor="middle">준비 마당</text>
+          <!-- mill entrance -->
+          <rect x="222" y="112" width="76" height="30" class="m-stn"/>
+          <text x="260" y="131" class="t" text-anchor="middle">물레종이소 입구</text>
+          <text x="304" y="150" class="t-d">66m · 22초</text>
+          <path d="M226 185 L120 150" class="m-path"/>
+          <text x="14" y="146" class="t-s">잉크 광산·봉랍 양봉장</text>
+          <text x="14" y="160" class="t-s">→ 지역 전환 후 18m</text>
+          <!-- north -->
+          <g transform="translate(490 510)"><path d="M0 -26l7 18h-14z" class="m-dot"/><text x="0" y="6" class="t-m" text-anchor="middle">N</text></g>
+        </svg>
+      </div>
+      <div style="display:grid; gap:16px">
+        <table class="tbl">
+          <thead><tr><th>자주 걷는 길</th><th>거리</th><th>시간</th></tr></thead>
+          <tbody>
+            <tr><td>공방→리네→게시판→공방</td><td class="n">66m</td><td class="n">22초</td></tr>
+            <tr><td>공방→에다→보린→공방</td><td class="n">72m</td><td class="n">24초</td></tr>
+            <tr><td>공방↔첫 던전 입구</td><td class="n">132m</td><td class="n">44초</td></tr>
+            <tr><td>세 길 모두 걷는 날</td><td class="n">270m</td><td class="n">90초</td></tr>
+          </tbody>
+        </table>
+        <div class="facts">
+          <div><span class="k">주길 폭</span><span class="num-t">4m · 생활 가지 3m</span></div>
+          <div><span class="k">납품 수거</span><span>마을 상자는 해 질 녘 에다, 길드 상자는 무로</span></div>
+          <div><span class="k">15일 밤</span><span>중심 마당이 종이등 축제 무대가 됨</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 05 mill -->
+<section class="sheet" id="mill">
+  <div class="tb">
+    <div class="num">도면<strong>05</strong></div>
+    <div><h2>물레종이소 — 3구역과 잔향 방 3개</h2><p class="sub">낮은 길은 물때에 잠기고, 높은 길은 12분까지 걷는 기본 귀환로입니다.</p></div>
+    <div class="meta">개념도(거리는 실제 값)<br>출처 T3 §3, W05 §2, W04 §4</div>
+  </div>
+  <div class="body">
+    <div class="tide" aria-label="물때 12분">
+      <div><b>0~6분</b>물이 낮음 · 관 속 물소리</div>
+      <div class="w2"><b>6분 · 기적 1번</b>L2 잠김 → H2로</div>
+      <div class="w3"><b>9분 · 기적 3번</b>철수 경고 · L1·L2 통과 불가</div>
+      <div class="w4"><b>12분</b>입구로 떠밀림</div>
+    </div>
+    <div class="cols">
+      <div class="scroll">
+        <svg class="map" viewBox="0 0 560 640" role="img" aria-label="물레종이소 개념도: 입구 E, 원료 마당 A, 세척실 B, 건조실 C를 낮은 길 L1 L2와 높은 길 H1 H2가 잇고, 정비길 P와 접힌 발판 F, 잔향 방 알파 베타 R">
+          <!-- R -->
+          <rect x="250" y="22" width="60" height="44" class="m-room2"/>
+          <rect x="250" y="22" width="60" height="44" class="m-echo"/>
+          <text x="280" y="42" class="t-b" text-anchor="middle">R</text>
+          <text x="280" y="57" class="t-s" text-anchor="middle">포장방</text>
+          <text x="320" y="36" class="t-d">E02 4일 · E04 7일</text>
+          <!-- C -->
+          <rect x="232" y="112" width="96" height="78" class="m-room"/>
+          <text x="280" y="134" class="t-b" text-anchor="middle">C 건조실</text>
+          <text x="280" y="150" class="t-s" text-anchor="middle">32×26m · 등심이끼</text>
+          <rect x="270" y="158" width="20" height="14" fill="var(--ink)"/>
+          <text x="296" y="170" class="t-s">점검구</text>
+          <circle cx="248" cy="178" r="6" class="m-mon"/><circle cx="262" cy="182" r="6" class="m-mon"/><circle cx="316" cy="126" r="6" class="m-mon"/>
+          <text x="338" y="126" class="t-m">B03 화덕딱정벌레</text>
+          <text x="338" y="186" class="t-m">B02 부풀달팽이 ×2</text>
+          <!-- B -->
+          <rect x="235" y="290" width="90" height="72" class="m-room"/>
+          <ellipse cx="280" cy="336" rx="26" ry="10" class="m-water"/>
+          <text x="280" y="312" class="t-b" text-anchor="middle">B 세척실</text>
+          <text x="280" y="354" class="t-s" text-anchor="middle">잉크 웅덩이</text>
+          <circle cx="262" cy="330" r="5" class="m-mon"/><circle cx="298" cy="342" r="5" class="m-mon"/>
+          <text x="232" y="378" class="t-m" text-anchor="end">B01 먹물도롱뇽 ×2</text>
+          <!-- beta -->
+          <rect x="410" y="300" width="58" height="46" class="m-room2"/>
+          <rect x="410" y="300" width="58" height="46" class="m-echo"/>
+          <text x="439" y="320" class="t-b" text-anchor="middle">β</text>
+          <text x="439" y="336" class="t-s" text-anchor="middle">점검실</text>
+          <text x="410" y="362" class="t-d">E03 6일 · E06 10일</text>
+          <path class="m-solid" d="M325 318H410"/>
+          <!-- A -->
+          <rect x="238" y="452" width="84" height="66" class="m-room"/>
+          <text x="280" y="474" class="t-b" text-anchor="middle">A 원료 마당</text>
+          <text x="280" y="490" class="t-s" text-anchor="middle">28×22m · 안전 구역</text>
+          <text x="280" y="505" class="t-s" text-anchor="middle">되감이풀 · 눌림수지</text>
+          <!-- alpha -->
+          <rect x="118" y="458" width="56" height="44" class="m-room2"/>
+          <rect x="118" y="458" width="56" height="44" class="m-echo"/>
+          <text x="146" y="478" class="t-b" text-anchor="middle">α</text>
+          <text x="146" y="493" class="t-s" text-anchor="middle">기록 홈</text>
+          <text x="112" y="520" class="t-d">E01 2일 · E05 8일</text>
+          <path class="m-solid" d="M174 480H238"/>
+          <!-- E -->
+          <rect x="246" y="590" width="68" height="24" class="m-sealfill"/>
+          <text x="280" y="606" class="t-sealink" text-anchor="middle">E 입구</text>
+          <path class="m-high" d="M280 590V518"/>
+          <text x="288" y="560" class="t-d">30m</text>
+          <!-- high paths (west) -->
+          <path class="m-high" d="M250 452 C210 430 206 380 245 362"/>
+          <text x="196" y="410" class="t-d" text-anchor="end">H1 54m</text>
+          <path class="m-high" d="M245 290 C200 260 200 220 240 190"/>
+          <text x="196" y="244" class="t-d" text-anchor="end">H2 60m</text>
+          <!-- low paths (east of center) -->
+          <path class="m-low" d="M306 452 C330 420 330 390 306 362"/>
+          <text x="334" y="414" class="t-w">L1 36m</text>
+          <path class="m-low" d="M306 290 C330 260 330 220 306 190"/>
+          <text x="334" y="246" class="t-w">L2 42m</text>
+          <!-- F -->
+          <path class="m-path" d="M280 290V190"/>
+          <text x="286" y="232" class="t-s">F 발판</text>
+          <text x="286" y="246" class="t-d">24m</text>
+          <!-- P maintenance -->
+          <path class="m-path" d="M232 150 C70 170 60 420 118 470" />
+          <text x="46" y="300" class="t-d">P 정비길</text>
+          <text x="46" y="314" class="t-d">72m</text>
+          <text x="46" y="328" class="t-s">C에서 손잡이로</text>
+          <!-- C-R -->
+          <path class="m-high" d="M280 112V66"/>
+          <text x="286" y="94" class="t-d">18m</text>
+          <g transform="translate(520 600)"><path d="M0 -26l7 18h-14z" class="m-dot"/><text x="0" y="6" class="t-m" text-anchor="middle">N</text></g>
+        </svg>
+      </div>
+      <div style="display:grid; gap:16px">
+        <div class="legend"><span><i class="sw"></i>높은 길(기본 귀환)</span><span><i class="sw water"></i>낮은 길(물때에 잠김)</span><span><i class="sw dash"></i>선택 지름길</span><span><i class="sw seal"></i>잔향 방</span></div>
+        <div class="facts">
+          <div><span class="k">최장 기본 귀환</span><span class="num-t">R→C→H2→H1→A→E 174m · 58초 (+여유 17초 = 75초)</span></div>
+          <div><span class="k">9분 철수 시</span><span class="num-t">10분 15초에 나옴 · 1분 45초 여유</span></div>
+          <div><span class="k">채집점</span><span class="num-t">A 6 · B 5 · C 5 = 하루 16곳</span></div>
+          <div><span class="k">점검구</span><span>1일차부터 보이지만 잠김. 20일 저녁 보린의 손잡이로 열림 → 도면 08</span></div>
+          <div><span class="k">분실물</span><span>1 젖은 메모(A) · 2 관측 수첩(B) · 3 수레 방울(C)</span></div>
+        </div>
+        <p class="note">증기 기적이 세 번 울리면 돌아온다.<small>행상 수칙 6 — W08b §7</small></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 06 mine -->
+<section class="sheet" id="mine">
+  <div class="tb">
+    <div class="num">도면<strong>06</strong></div>
+    <div><h2>잉크 광산 — 광차와 물문</h2><p class="sub">9일 첫 방문, 3막 13~16일 주 무대. 달팽이가 붙은 물문은 닫혀 있습니다.</p></div>
+    <div class="meta">개념도(거리는 실제 값)<br>출처 W05 §4, W04 B01·B04</div>
+  </div>
+  <div class="body">
+    <div class="scroll">
+      <svg class="map" viewBox="0 0 720 300" style="min-width:640px" role="img" aria-label="잉크 광산: 입구에서 24미터 반입장 M1, 42미터 선별 갱도 M2(물문 3개, 먹 가루 흐름), 48미터 침전·기록실 M3. 광차 레일이 M1에서 M3까지">
+        <rect x="14" y="128" width="54" height="26" class="m-sealfill"/>
+        <text x="41" y="145" class="t-sealink" text-anchor="middle">입구</text>
+        <path class="m-high" d="M68 141H104"/><text x="86" y="134" class="t-d" text-anchor="middle">24m</text>
+        <!-- M1 -->
+        <rect x="104" y="96" width="104" height="90" class="m-room"/>
+        <text x="156" y="116" class="t-b" text-anchor="middle">M1 반입장</text>
+        <text x="156" y="131" class="t-s" text-anchor="middle">26×20m · 생물 없음</text>
+        <path d="M112 170 q10 -6 20 0 t20 0 t20 0" class="m-water" fill="none"/>
+        <text x="156" y="184" class="t-s" text-anchor="middle">숨갈대 · 물빛이끼</text>
+        <rect x="120" y="40" width="60" height="40" class="m-room2"/><rect x="120" y="40" width="60" height="40" class="m-echo"/>
+        <text x="150" y="58" class="t-b" text-anchor="middle">E07</text><text x="150" y="72" class="t-s" text-anchor="middle">튕겨라 13일</text>
+        <path class="m-solid" d="M150 80V96"/>
+        <path class="m-high" d="M208 141H262"/><text x="235" y="134" class="t-d" text-anchor="middle">42m</text>
+        <!-- M2 -->
+        <rect x="262" y="112" width="190" height="58" class="m-room"/>
+        <path d="M262 106H452M262 176H452" stroke="var(--ink-2)" stroke-width="1.5" stroke-dasharray="1 3"/>
+        <text x="357" y="102" class="t-s" text-anchor="middle">높은 점검길</text>
+        <text x="357" y="133" class="t-b" text-anchor="middle">M2 선별 갱도 42×12m</text>
+        <path class="m-wind" d="M270 150 H440 M430 145l10 5-10 5"/>
+        <text x="357" y="164" class="t-m" text-anchor="middle">먹 가루 흐름(바람 → S5)</text>
+        <!-- gates -->
+        <g><rect x="292" y="176" width="22" height="12" fill="var(--wood)"/><circle cx="303" cy="198" r="7" class="m-mon"/></g>
+        <g><rect x="350" y="176" width="22" height="12" fill="var(--wood)"/><circle cx="361" cy="198" r="7" class="m-mon"/></g>
+        <g><rect x="408" y="100" width="22" height="12" fill="var(--wood)"/><circle cx="419" cy="90" r="7" class="m-mon"/></g>
+        <text x="332" y="226" class="t-m" text-anchor="middle">물문 3 · B04 물문달팽이 붙으면 닫힘</text>
+        <rect x="274" y="112" width="8" height="30" fill="var(--ink-2)"/>
+        <text x="270" y="244" class="t-s">바람막이(손잡이)</text>
+        <path d="M278 142 L276 232" class="m-wind"/>
+        <rect x="470" y="200" width="60" height="40" class="m-room2"/><rect x="470" y="200" width="60" height="40" class="m-echo"/>
+        <text x="500" y="218" class="t-b" text-anchor="middle">E08</text><text x="500" y="232" class="t-s" text-anchor="middle">벽 14일</text>
+        <path class="m-solid" d="M452 170L470 210"/>
+        <path class="m-high" d="M452 141H530"/><text x="491" y="134" class="t-d" text-anchor="middle">48m</text>
+        <!-- M3 -->
+        <rect x="530" y="92" width="96" height="98" class="m-room"/>
+        <text x="578" y="112" class="t-b" text-anchor="middle">M3 침전·기록실</text>
+        <text x="578" y="127" class="t-s" text-anchor="middle">24×20m</text>
+        <ellipse cx="578" cy="160" rx="30" ry="9" class="m-water"/>
+        <circle cx="560" cy="160" r="5" class="m-mon"/>
+        <text x="578" y="184" class="t-m" text-anchor="middle">B01 · 먹 침전조</text>
+        <rect x="642" y="100" width="62" height="40" class="m-room2"/><rect x="642" y="100" width="62" height="40" class="m-echo"/>
+        <text x="673" y="118" class="t-b" text-anchor="middle">E09</text><text x="673" y="132" class="t-s" text-anchor="middle">가려라 15일</text>
+        <path class="m-solid" d="M626 120H642"/>
+        <!-- rail -->
+        <path class="m-rail" d="M150 158 H560"/>
+        <path class="m-sleeper" d="M160 154v8M180 154v8M200 154v8M220 154v8M240 154v8M260 154v8M440 154v8M460 154v8M480 154v8M500 154v8M520 154v8M540 154v8"/>
+        <rect x="178" y="146" width="20" height="10" fill="var(--wood)"/>
+        <text x="188" y="210" class="t-s" text-anchor="middle">광차(레일 위만)</text>
+        <!-- maintenance -->
+        <path class="m-path" d="M578 190 C560 290 180 290 156 186"/>
+        <text x="360" y="276" class="t-s" text-anchor="middle">M3 → M1 선택 정비길</text>
+      </svg>
+    </div>
+    <div class="cols">
+      <div class="facts">
+        <div><span class="k">최장 기본 귀환</span><span class="num-t">165m · 55초 + 여유 20초 = 75초</span></div>
+        <div><span class="k">상태 변주 3</span><span>A 기준 · B 바람 반대(동쪽 채집 홈 가려짐) · C 물문 닫힌 날(지름길 없음, 달팽이 재료 많음)</span></div>
+        <div><span class="k">부재료</span><span>K10 물빛이끼 · K11 숨갈대 마디 · K12 물문수지 · K13 둥근탄성껍질(B04 떨굼)</span></div>
+        <div><span class="k">분실물</span><span>4 큰 장갑(물문달팽이 밑) · 5 원산지 도장(M3)</span></div>
+      </div>
+      <p class="note">광차는 짐입니다. 타는 것이 아닙니다.<small>무로, 9일 아침 — W08c §4.2</small></p>
+    </div>
+  </div>
+</section>
+
+<!-- 07 apiary -->
+<section class="sheet" id="apiary">
+  <div class="tb">
+    <div class="num">도면<strong>07</strong></div>
+    <div><h2>봉랍 양봉장 — 바람 길과 가마</h2><p class="sub">종이벌이 떠난 빈 양봉장. 17~20일. 빈 벌집 상자가 바람에 윙윙 웁니다.</p></div>
+    <div class="meta">개념도(거리는 실제 값)<br>출처 W05 §5, W04 B03·B07·B09</div>
+  </div>
+  <div class="body">
+    <div class="scroll">
+      <svg class="map" viewBox="0 0 720 300" style="min-width:640px" role="img" aria-label="봉랍 양봉장: 입구에서 18미터 둑·채집 정원 Y1, 36미터 가열 작업장 Y2(가마), 42미터 바람 건조대 Y3. Y1과 Y3를 둑길 60미터가 이음">
+        <path d="M0 250 C160 230 320 270 480 246 S680 236 720 250 V300 H0z" class="m-water"/>
+        <text x="690" y="286" class="t-w" text-anchor="end">강</text>
+        <rect x="14" y="140" width="54" height="26" class="m-sealfill"/>
+        <text x="41" y="157" class="t-sealink" text-anchor="middle">입구</text>
+        <path class="m-high" d="M68 153H96"/><text x="82" y="146" class="t-d" text-anchor="middle">18m</text>
+        <!-- Y1 -->
+        <rect x="96" y="104" width="144" height="96" class="m-room"/>
+        <text x="168" y="124" class="t-b" text-anchor="middle">Y1 둑·채집 정원</text>
+        <text x="168" y="139" class="t-s" text-anchor="middle">36×24m · 벌집 상자 줄</text>
+        <g fill="var(--sheet-2)" stroke="var(--wood)" stroke-width="1"><rect x="110" y="150" width="14" height="12"/><rect x="130" y="150" width="14" height="12"/><rect x="150" y="150" width="14" height="12"/><rect x="190" y="150" width="14" height="12"/><rect x="210" y="150" width="14" height="12"/></g>
+        <path class="m-wind" d="M100 176 H236 M226 171l10 5-10 5"/>
+        <circle cx="130" cy="188" r="6" class="m-mon"/><circle cx="206" cy="190" r="6" class="m-mon"/>
+        <text x="168" y="216" class="t-m" text-anchor="middle">B07 풀옷도롱뇽 ×2 · 인쇄풀혹</text>
+        <path class="m-high" d="M240 153H300"/><text x="270" y="146" class="t-d" text-anchor="middle">36m</text>
+        <!-- Y2 -->
+        <rect x="300" y="110" width="104" height="84" class="m-room"/>
+        <text x="352" y="130" class="t-b" text-anchor="middle">Y2 가열 작업장</text>
+        <text x="352" y="145" class="t-s" text-anchor="middle">24×18m</text>
+        <rect x="316" y="154" width="30" height="24" fill="var(--heat)" opacity=".85"/>
+        <text x="331" y="190" class="t-m" text-anchor="middle">가마</text>
+        <rect x="360" y="156" width="30" height="20" class="m-water"/>
+        <text x="375" y="190" class="t-m" text-anchor="middle">냉각 수조</text>
+        <rect x="320" y="30" width="64" height="40" class="m-room2"/><rect x="320" y="30" width="64" height="40" class="m-echo"/>
+        <text x="352" y="48" class="t-b" text-anchor="middle">E10</text><text x="352" y="62" class="t-s" text-anchor="middle">세게 17일</text>
+        <path class="m-solid" d="M352 70V110"/>
+        <text x="404" y="208" class="t-m">B03 + B07 · 밀랍 바닥(끈적)</text>
+        <path class="m-high" d="M404 153H472"/><text x="438" y="146" class="t-d" text-anchor="middle">42m</text>
+        <!-- Y3 -->
+        <rect x="472" y="118" width="130" height="70" class="m-room"/>
+        <text x="537" y="138" class="t-b" text-anchor="middle">Y3 바람 건조대</text>
+        <text x="537" y="153" class="t-s" text-anchor="middle">30×16m · 기록 홈</text>
+        <path class="m-wind" d="M476 166 H598 M588 161l10 5-10 5"/>
+        <path class="m-wind" d="M476 178 H598"/>
+        <g class="m-dot"><circle cx="560" cy="130" r="2"/><circle cx="568" cy="126" r="2"/><circle cx="574" cy="133" r="2"/><circle cx="566" cy="138" r="2"/></g>
+        <text x="537" y="202" class="t-m" text-anchor="middle">B09 책먼지나방 무리</text>
+        <rect x="620" y="126" width="62" height="40" class="m-room2"/><rect x="620" y="126" width="62" height="40" class="m-echo"/>
+        <text x="651" y="144" class="t-b" text-anchor="middle">E11</text><text x="651" y="158" class="t-s" text-anchor="middle">주변 18일</text>
+        <path class="m-solid" d="M602 146H620"/>
+        <!-- levee path -->
+        <path class="m-high" d="M168 104 C220 40 480 40 537 118"/>
+        <text x="352" y="92" class="t-d" text-anchor="middle">둑길 귀환로 60m</text>
+      </svg>
+    </div>
+    <div class="cols">
+      <div class="facts">
+        <div><span class="k">최장 기본 귀환</span><span class="num-t">Y3 기록 홈→둑길→Y1→입구 약 170m · 57초 + 18초 = 75초</span></div>
+        <div><span class="k">상태 변주 3</span><span>A 기준 · B 센바람(종이가 날아 시야 방해, 바탕 종이 채집) · C 가마 센불(B07이 저절로 풀옷을 벗음)</span></div>
+        <div><span class="k">장난감</span><span>바람 길 · 밀랍 바닥 · 가마 · 잘 굴러가는 빈 벌집 상자</span></div>
+        <div><span class="k">분실물</span><span>6 빵 틀(풀옷도롱뇽 등) · 7 오래된 길드 도장(Y3 기록 홈)</span></div>
+      </div>
+      <p class="note">벌집 상자 소리는 벌이 아니라 바람.<br>가설 폐기. 조금 아쉬움.<small>도토의 관측 기록 — W08c §4.3</small></p>
+    </div>
+  </div>
+</section>
+
+<!-- 08 undermill -->
+<section class="sheet" id="undermill">
+  <div class="tb">
+    <div class="num">도면<strong>08</strong></div>
+    <div><h2>물레종이소 심층부 — 합동 작업장</h2><p class="sub">4막 21~25일. 건조실 점검구로 내려가고, 첫 방문에 배수문을 열면 입구에서 바로 들어옵니다.</p></div>
+    <div class="meta">개념도(거리는 실제 값)<br>출처 W05 §3, §6 E12~E14</div>
+  </div>
+  <div class="body">
+    <div class="scroll">
+      <svg class="map" viewBox="0 0 720 340" style="min-width:640px" role="img" aria-label="심층부: 입구에서 배수 터널 36미터, 배수문, S1 배수 수로 48미터, 24미터 뒤 S2 합동 인쇄실(작업대 4개와 큰 인쇄기), 30미터 뒤 S3 합동 도안실. S2 위로 점검구 계단 12미터가 건조실 C와 이어짐">
+        <!-- upper level -->
+        <rect x="380" y="14" width="120" height="44" fill="none" stroke="var(--ink-2)" stroke-dasharray="4 3"/>
+        <text x="440" y="34" class="t" text-anchor="middle">위층: C 건조실</text>
+        <text x="440" y="50" class="t-s" text-anchor="middle">점검구 뚜껑</text>
+        <path class="m-high" d="M440 58V118"/>
+        <path d="M430 70h20M430 80h20M430 90h20M430 100h20M430 110h20" stroke="var(--ink)" stroke-width="1.2"/>
+        <text x="456" y="92" class="t-d">계단 12m</text>
+        <!-- entrance + tunnel -->
+        <rect x="14" y="200" width="54" height="26" class="m-sealfill"/>
+        <text x="41" y="217" class="t-sealink" text-anchor="middle">입구 E</text>
+        <path class="m-high" d="M68 213H120"/><text x="94" y="206" class="t-d" text-anchor="middle">배수 터널 36m</text>
+        <rect x="120" y="198" width="10" height="30" fill="var(--wood)"/>
+        <text x="125" y="244" class="t-s" text-anchor="middle">배수문</text>
+        <!-- S1 -->
+        <rect x="130" y="196" width="200" height="34" class="m-room"/>
+        <rect x="134" y="206" width="192" height="14" class="m-water"/>
+        <text x="230" y="190" class="t-b" text-anchor="middle">S1 배수 수로 48×8m</text>
+        <path d="M130 244H330" stroke="var(--ink-2)" stroke-width="1.5" stroke-dasharray="1 3"/>
+        <text x="230" y="258" class="t-s" text-anchor="middle">높은 점검 회랑(9분부터 난간 잠기면 이쪽, +12m)</text>
+        <rect x="236" y="270" width="64" height="40" class="m-room2"/><rect x="236" y="270" width="64" height="40" class="m-echo"/>
+        <text x="268" y="288" class="t-b" text-anchor="middle">E12</text><text x="268" y="302" class="t-s" text-anchor="middle">멀리 21일</text>
+        <circle cx="318" cy="200" r="4" fill="none" stroke="var(--ink)" stroke-width="2"/>
+        <text x="316" y="182" class="t-m" text-anchor="end">건너편 먼 고리(12m)</text>
+        <path class="m-high" d="M330 213H372"/><text x="351" y="206" class="t-d" text-anchor="middle">24m</text>
+        <!-- S2 -->
+        <rect x="372" y="118" width="136" height="150" class="m-room"/>
+        <text x="440" y="138" class="t-b" text-anchor="middle">S2 합동 인쇄실</text>
+        <text x="440" y="152" class="t-s" text-anchor="middle">30×24m · 책등수지</text>
+        <g class="m-stn"><rect x="380" y="160" width="26" height="16"/><rect x="474" y="160" width="26" height="16"/><rect x="380" y="244" width="26" height="16"/><rect x="474" y="244" width="26" height="16"/></g>
+        <text x="440" y="178" class="t-m" text-anchor="middle">4공정 작업대(공방과 같음)</text>
+        <rect x="418" y="196" width="44" height="34" fill="var(--wood)"/>
+        <path d="M418 200h-8M462 200h8M418 226h-8M462 226h8" stroke="var(--wood)" stroke-width="3"/>
+        <text x="440" y="244" class="t-m" text-anchor="middle">거대 인쇄기 · 손잡이 4</text>
+        <rect x="392" y="282" width="64" height="40" class="m-room2"/><rect x="392" y="282" width="64" height="40" class="m-echo"/>
+        <text x="424" y="300" class="t-b" text-anchor="middle">E13</text><text x="424" y="314" class="t-s" text-anchor="middle">복습 23일</text>
+        <path class="m-solid" d="M424 268V282"/>
+        <path class="m-high" d="M508 193H560"/><text x="534" y="186" class="t-d" text-anchor="middle">30m</text>
+        <!-- S3 -->
+        <rect x="560" y="140" width="96" height="100" class="m-room"/>
+        <path class="m-sealline" d="M656 144V236"/>
+        <text x="604" y="160" class="t-b" text-anchor="middle">S3 합동 도안실</text>
+        <text x="604" y="175" class="t-s" text-anchor="middle">20×16m · 어둡고 가루</text>
+        <g class="m-dot"><circle cx="590" cy="200" r="2"/><circle cx="598" cy="194" r="2"/><circle cx="604" cy="203" r="2"/></g>
+        <text x="604" y="224" class="t-m" text-anchor="middle">B09 무리 · E14 24일</text>
+        <text x="664" y="170" class="t-d">마지막</text>
+        <text x="664" y="184" class="t-d">도안판 벽</text>
+        <text x="664" y="198" class="t-d">A20 · 25일</text>
+      </svg>
+    </div>
+    <div class="cols">
+      <div class="facts">
+        <div><span class="k">열리는 순서</span><span>20일 저녁 보린이 점검구 손잡이를 깎음 → 21일 계단으로 입장 → 안에서 배수문 열기 → 22일부터 입구 직행</span></div>
+        <div><span class="k">최장 기본 귀환</span><span class="num-t">S3→S2→S1→배수문→E 148m · 49초 + 20초 = 69초</span></div>
+        <div><span class="k">고유 압박</span><span>새 규칙 없이 기존 반응의 겹침: S2 젖음+열(김), S3 가루+바람(시야)</span></div>
+        <div><span class="k">최종 작업 A20</span><span>손없는 등불로 읽는 대 밝히기 → 이동 여과틀로 가루 길목 막기 → 임시 봉합 24초 동안 나사 3개 조이기 → 마지막 장 탁본</span></div>
+        <div><span class="k">분실물</span><span>8 낡은 드라이버(S2) — 손잡이 밑 "다음 사람에게."</span></div>
+      </div>
+      <p class="note">합동 작업장 — 들어온 사람은 이름을 적을 것.<small>배수문 안쪽 팻말 — W08c §4.4</small></p>
+    </div>
+  </div>
+</section>
+
+<!-- 09 screens -->
+<section class="sheet" id="screens">
+  <div class="tb">
+    <div class="num">도면<strong>09</strong></div>
+    <div><h2>화면 시안 — 종이 UI</h2><p class="sub">확인은 도장, 경고는 인주, 닫기는 종이 접기. 공방에서는 설비를 바라보는 것이 곧 화면입니다.</p></div>
+    <div class="meta">출처 W11 §2, T2 §2<br>D7-50~53</div>
+  </div>
+  <div class="body">
+    <div class="screens">
+      <!-- bench -->
+      <div class="wide">
+        <div class="scroll">
+          <div class="bench" role="img" aria-label="조판대 화면 시안">
+            <div class="orderline"><i class="clip"></i><span class="hand">에다 · M01 "짐에 짧은 빛"</span><span class="ok">✔ 대상 물건 ✔ 수식 잠깐</span><i class="clip"></i><span class="hand" style="opacity:.7">세인 · A01 "짐에 긴 빛"</span></div>
+            <div class="bench-main">
+              <div class="drawer">
+                <small>활자 서랍 7 / 18</small>
+                <div class="r"><i class="cir" style="background:#C8F03C"></i><i class="cir" style="background:#F5A623"></i><i class="cir" style="background:#7EA6E0"></i><i class="cir empty"></i><i class="cir empty"></i><i class="cir empty"></i><i class="cir empty"></i></div>
+                <div class="r"><i class="sq"></i><i class="sq"></i><i class="sq empty"></i><i class="sq empty"></i><i class="sq empty"></i><i class="sq empty"></i></div>
+                <div class="r"><i class="st"></i><i class="st"></i><i class="st empty"></i><i class="st empty"></i><i class="st empty"></i></div>
+                <small>빈 칸 = 아직 모르는 룬</small>
+              </div>
+              <div class="frame">
+                <div class="slot"><div><div class="tp cir"><svg viewBox="0 0 24 24" width="26" height="26"><circle cx="12" cy="12" r="3.5" fill="#2A2730"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" stroke="#2A2730" stroke-width="2" fill="none" stroke-linecap="round"/></svg></div>빛나라</div></div>
+                <div class="slot"><div><div class="tp sq"><svg viewBox="0 0 24 24" width="26" height="26"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z M4 7.5l8 4.5 8-4.5 M12 12v9" stroke="#F3EAD7" stroke-width="2" fill="none" stroke-linejoin="round"/></svg></div>물건</div></div>
+                <div class="slot"><div><div class="tp st"><svg viewBox="0 0 24 24" width="26" height="26"><circle cx="12" cy="12" r="8" stroke="#FFF4E8" stroke-width="2" fill="none"/><path d="M12 12V7" stroke="#FFF4E8" stroke-width="2" stroke-linecap="round"/></svg></div>잠깐</div></div>
+                <div class="editing">판틀 ① · 편집 중: 민</div>
+              </div>
+              <div class="paper">
+                <div class="bd">
+                  <div style="font-family:var(--f-disp); font-weight:700">빛나라 + 물건 + 잠깐</div>
+                  <div class="row"><span class="dim">대상</span><span>조준한 소품 1</span></div>
+                  <div class="row"><span class="dim">준비</span><span class="n">0.2초</span></div>
+                  <div class="row"><span class="dim">지속</span><span class="n">60초</span></div>
+                  <div class="row"><span class="dim">먹</span><span>빛 1회분</span></div>
+                  <div class="row"><span class="dim">원가 · 판매가</span><span class="n">6G · 20G</span></div>
+                  <div style="color:#B3322B; margin-top:4px">주의: 사람에 쓰면 눈부심</div>
+                </div>
+              </div>
+            </div>
+            <div class="bench-btns"><span>시험지 뽑기</span><span class="pri">판 굳히기 (쿵)</span><span>판 선반에서 불러오기</span></div>
+          </div>
+        </div>
+        <p class="cap"><b>조판대</b> · 판틀 확대 + 설명 쪽지(화면 60%). 조건에 ✘가 떠도 엉뚱한 문장은 그대로 굳힐 수 있습니다.</p>
+      </div>
+      <!-- HUD -->
+      <div class="wide">
+        <div class="scroll">
+          <div class="hud" role="img" aria-label="던전 표시 화면 시안: 네 모서리만 사용">
+            <div class="c tl">
+              <div class="lab">행상단</div>
+              <div>● 준 <span class="st warn">◐ 휘청임</span> <span style="color:var(--screen-dim)">세척실</span></div>
+              <div>● 민 <span style="color:var(--screen-dim)">건조실</span></div>
+              <div>◌ 서 <span style="color:var(--screen-dim)">공방 · 오늘 재입장 불가</span></div>
+            </div>
+            <div class="c tr">
+              <div style="text-align:right"><div class="lab">물때</div><div style="font-family:var(--f-mono); font-size:15px">07:42</div><div style="font-size:11px; color:#9FD3DA">물때 상승</div></div>
+              <svg viewBox="0 0 60 60" width="58" height="58" aria-hidden="true"><circle cx="30" cy="30" r="25" fill="none" stroke="rgba(237,227,206,.35)" stroke-width="2"/><path d="M30 30 L30 5 A25 25 0 1 1 11.5 46.7 Z" fill="rgba(46,94,102,.75)"/><g stroke="#EDE3CE" stroke-width="2"><path d="M30 3v6"/><path d="M57 30h-6"/><path d="M30 57v-6"/><path d="M3 30h6"/></g><circle cx="30" cy="30" r="4" fill="#EDE3CE"/><g stroke="rgba(237,227,206,.6)" stroke-width="1.5"><path d="M30 30 L47.7 12.3M30 30 L47.7 47.7M30 30 L12.3 47.7M30 30 L12.3 12.3"/></g></svg>
+            </div>
+            <div class="c mid"><div class="cross"></div><div style="font-size:12px">대상: 부풀달팽이 · 너</div><div style="font-size:10.5px; color:var(--screen-dim)">예상 범위(옅은 원)</div></div>
+            <div class="aim" aria-hidden="true"></div>
+            <div class="c bl">
+              <div class="lab">내 상태</div>
+              <div><span class="st" style="background:rgba(245,166,35,.3)">붙음 3.2초 · E 떼기</span></div>
+              <div class="ping"><span>여기</span><span>위험</span><span>도와줘</span><span>가져가</span><span>돌아가자</span><span>준비됐어</span></div>
+            </div>
+            <div class="c br">
+              <div>손판 <span class="plate">① 빛+물건+오래</span><span class="plate">② 붙+너+잠깐</span></div>
+              <div style="margin-top:4px">손: 되감는 손 ×2</div>
+              <div class="bag" title="등짐 4/6"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i></div>
+              <div style="font-size:11px; color:#9FD3DA; margin-top:2px">💧 물에 약함 2</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><b>던전 표시</b> · 네 모서리만, 화면 15% 이내. 물때 시계는 물레 바퀴 모양이고 6·9분 눈금에서 기적 소리와 함께 흔들립니다. 등짐 두루마리 통 6개가 곧 스크롤 한도입니다.</p>
+      </div>
+      <!-- cause card -->
+      <div>
+        <div class="paper" style="max-width:420px">
+          <div class="hd">원인 카드 #1043</div>
+          <div class="bd">
+            <div><span class="n">07:12</span> 민이 찢음: <b>달궈라 + 바닥 + 잠깐</b></div>
+            <div class="sec">이전 상태</div><div>물기 · 준이 만든 접착막</div>
+            <div class="sec">반응</div><div>물기가 열을 먼저 씀 → 김 발생<br>접착을 풀 열 부족</div>
+            <div class="sec">결과</div><div>김 · 접착 유지</div>
+            <div class="sec">지금 할 수 있는 것</div><div>E 손으로 떼기 (2초)</div>
+            <div class="dim" style="margin-top:6px">📷 사진기로 찍힌 사건</div>
+          </div>
+        </div>
+        <p class="cap"><b>원인 카드</b> · R 키. 문장 → 이전 상태 → 반응 → 결과 → 수습 순서. 만든 사람과 쓴 사람을 구분합니다.</p>
+      </div>
+      <!-- ledger -->
+      <div>
+        <div class="paper" style="max-width:420px">
+          <div class="hd">여백 공방 · 12일차 정산</div>
+          <div class="bd">
+            <div class="sec" style="margin-top:0">현금</div>
+            <div class="row"><span>의뢰 대금 M10 · A06</span><span class="n">+70G · +150G</span></div>
+            <div class="row"><span>자유 판매</span><span class="n">+20G</span></div>
+            <div class="row"><span>구매</span><span class="n">−46G</span></div>
+            <div class="row" style="border-top:1px solid #BFA97F; margin-top:4px; padding-top:4px"><span>오늘 현금</span><span class="n"><b>+194G</b> <span class="stamp">흑자</span></span></div>
+            <div class="sec">상품 사용</div>
+            <div>동료 구조: '당겨라+너+잠깐' 1장 <span class="dim">(예상 판매가 20G — 참고, 현금에서 빼지 않음)</span></div>
+            <div class="sec">물때</div>
+            <div class="row"><span>보존</span><span>등심이끼 2 · 봉인 스크롤 3</span></div>
+            <div class="row"><span>파손</span><span>먹주머니 1 · 미봉인 1</span></div>
+            <div class="sec">사건</div><div>발광 4 · 접착 2 · 튕김 1 · 구조 1</div>
+            <span class="fold">접어서 닫기</span>
+          </div>
+        </div>
+        <p class="cap"><b>정산서</b> · 현금·사용·파손을 다른 칸에(이중 차감 금지). 보존과 파손은 나란히.</p>
+      </div>
+      <!-- newspaper -->
+      <div>
+        <div class="news" style="max-width:420px">
+          <div class="mast2"><b>물레목 주간</b><span>제2호 · 10일차 · THE SPINDLEWICK WEEKLY</span></div>
+          <div class="photo" aria-hidden="true">
+            <i style="width:70px;height:70px;left:40%;top:30%;background:radial-gradient(#C8F03C,transparent 70%)"></i>
+            <i style="width:34px;height:34px;left:22%;top:52%;background:#1FC8D6;opacity:.8"></i>
+            <i style="width:22px;height:22px;left:64%;top:58%;background:#F3EAD7"></i>
+          </div>
+          <div class="cols2">
+            <div><h4>화제의 사고</h4><p>물레종이소 건조실에서 [행상단원]의 '튕겨라 + 너 + 넓게'가 달팽이·동료 둘의 연속 충돌로 이어졌다. 영향을 받은 3명(마리)은 모두 멀쩡한 것으로 확인됐다.</p></div>
+            <div><h4>반출 대장 일부 공개</h4><p>반출처: 먹돌 광산 선별소, 봉랍 양봉장 건조대, 합동 도안실(위치 미상). — C05</p><h4 style="margin-top:6px">다음 주 수요</h4><p>한 겹 완충 +2장</p></div>
+          </div>
+          <span class="fold">신문 저장(PNG)</span> <span class="fold">접기</span>
+        </div>
+        <p class="cap"><b>신문</b> · 5일마다. 1면은 이번 주 사진 중 하나. 다음 주 손님이 이 기사를 들고 옵니다(화제 상품).</p>
+      </div>
+      <!-- expedition -->
+      <div>
+        <div class="paper" style="max-width:420px">
+          <div class="hd">출정 준비</div>
+          <div class="bd">
+            <div class="row"><span class="dim">목적지</span><span>물레종이소 ▾ · 서쪽 점검일</span></div>
+            <div class="row"><span class="dim">행상단</span><span>준 ✔ · 민 ✔ · 서 … 준비 중</span></div>
+            <div class="row"><span class="dim">등짐</span><span>파티 합계 6장</span></div>
+            <div class="row"><span class="dim">손판</span><span class="hand">① 손없는 등불 ② ______</span></div>
+            <div class="row"><span class="dim">물에 약한 것</span><span>바탕 종이 4</span></div>
+            <div style="color:#B3322B; margin-top:6px">⚠ 먼저 돌아오면 오늘 다시 못 들어갑니다</div>
+            <div style="text-align:center; margin-top:10px"><span class="stamp" style="transform:none">준비됐어</span></div>
+          </div>
+        </div>
+        <p class="cap"><b>출정 준비대</b> · 모두 "준비됐어"를 누르면 출정문이 열립니다. 늦은 사람은 공방에 남아 일합니다.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="foot">
+  <p>원문: 프로젝트 폴더 <code>C:\Users\Home\Documents\ChatGPT\스크롤페들러\claude-lead\</code> — W00 개요와 결정, W01~W12 분야별 보강, W08c 남은 대본, T1~T9 분야 설계, 설계-정리본-v2.0.</p>
+  <p>지도는 개념도입니다. 방 크기와 연결 거리는 문서 값을 따르지만, 방 사이 간격은 읽기 쉽게 줄였습니다. 실제 배치는 회색 상자로 만들어 걸어 보며 정합니다.</p>
+</footer>
+
+</div>
