@@ -1,0 +1,21 @@
+# Line endings: store text as LF in the repo, check out per platform.
+# Explicit `text` on Unreal source/config so CRLF files from the editor are normalized even if already staged.
+* text=auto
+*.md text
+*.json text
+*.html text
+*.cpp text
+*.h text
+*.inl text
+*.cs text
+*.ini text
+*.uproject text
+*.uplugin text
+.vsconfig text
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Unreal binary assets go through Git LFS.
+# Run `git lfs install` once on this machine before the first commit that adds them.
+*.uasset filter=lfs diff=lfs merge=lfs -text
+*.umap filter=lfs diff=lfs merge=lfs -text

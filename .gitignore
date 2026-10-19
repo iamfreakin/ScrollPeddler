@@ -27,6 +27,22 @@
 /Content/Developers/
 /Content/Collections/
 
+# The Unreal project lives in ScrollPeddler/, so the rules above need the subfolder prefix too
+/ScrollPeddler/Binaries/
+/ScrollPeddler/DerivedDataCache/
+/ScrollPeddler/Intermediate/
+/ScrollPeddler/Saved/
+/ScrollPeddler/Build/*/FileOpenOrder/
+/ScrollPeddler/Plugins/**/Binaries/
+/ScrollPeddler/Plugins/**/Intermediate/
+/ScrollPeddler/.idea/
+/ScrollPeddler/.vs/
+/ScrollPeddler/Content/Developers/
+/ScrollPeddler/Content/Collections/
+/ScrollPeddler/Builds/
+/ScrollPeddler/LocalTestEvidence/
+*.user
+
 # Local OS files
 .DS_Store
 Thumbs.db

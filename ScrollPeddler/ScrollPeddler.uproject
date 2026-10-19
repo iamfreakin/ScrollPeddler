@@ -1,0 +1,30 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "{4029A795-40D7-060B-B6D1-9EAFF4D24CF6}",
+	"Category": "",
+	"Description": "",
+	"Modules": [
+		{
+			"Name": "ScrollPeddler",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "ModelingToolsEditorMode",
+			"Enabled": true,
+			"TargetAllowList": [
+				"Editor"
+			]
+		},
+		{
+			"Name": "EnhancedInput",
+			"Enabled": true
+		},
+		{
+			"Name": "EngineCameras",
+			"Enabled": true
+		}
+	]
+}
