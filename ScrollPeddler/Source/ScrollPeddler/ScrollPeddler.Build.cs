@@ -10,8 +10,8 @@ public class ScrollPeddler : ModuleRules
 	
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput" });
 
-		// EngineCameras: wave/perlin camera shake patterns. PhysicsCore: physical surface types for footsteps.
-		PrivateDependencyModuleNames.AddRange(new string[] { "EngineCameras", "PhysicsCore" });
+		// PhysicsCore: physical surface types for footsteps.
+		PrivateDependencyModuleNames.AddRange(new string[] { "PhysicsCore" });
 
 		// Uncomment if you are using Slate UI
 		// PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });

@@ -43,6 +43,12 @@
 /ScrollPeddler/LocalTestEvidence/
 *.user
 
+# Engine First Person template content copied into the project. Epic content: not redistributed through this repo.
+# Recreate it with ScrollPeddler/Tools/Unreal/copy_template_content.ps1.
+/ScrollPeddler/Content/Characters/
+/ScrollPeddler/Content/Input/
+/ScrollPeddler/Content/FirstPerson/
+
 # Local OS files
 .DS_Store
 Thumbs.db

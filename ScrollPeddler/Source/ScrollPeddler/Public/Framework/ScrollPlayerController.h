@@ -7,7 +7,7 @@
 class UInputAction;
 class UInputMappingContext;
 
-/** Input assets the character binds to. All four must be set, or the runtime defaults are used. */
+/** Input assets the character binds to. All must be set, or the runtime defaults are used. */
 USTRUCT(BlueprintType)
 struct FScrollInputSet
 {
@@ -25,7 +25,12 @@ struct FScrollInputSet
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<UInputAction> Jump = nullptr;
 
-	bool IsComplete() const { return MappingContext && Move && Look && Jump; }
+	/** Held to sprint. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<UInputAction> Sprint = nullptr;
+
+	bool IsComplete() const { return MappingContext && Move && Look && Jump && Sprint; }
+	bool IsEmpty() const { return !MappingContext && !Move && !Look && !Jump && !Sprint; }
 };
 
 /**

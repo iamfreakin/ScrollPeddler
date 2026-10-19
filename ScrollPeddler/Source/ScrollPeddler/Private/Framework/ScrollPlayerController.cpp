@@ -13,7 +13,7 @@ void AScrollPlayerController::SetupInputComponent()
 
 	if (!InputSet.IsComplete())
 	{
-		if (InputSet.MappingContext || InputSet.Move || InputSet.Look || InputSet.Jump)
+		if (!InputSet.IsEmpty())
 		{
 			UE_LOG(LogScroll, Warning, TEXT("%s: InputSet is only partly assigned; using runtime defaults instead."), *GetName());
 		}
@@ -38,6 +38,9 @@ void AScrollPlayerController::BuildDefaultInputSet()
 
 	UInputAction* Jump = NewObject<UInputAction>(this, TEXT("IA_Jump"));
 	Jump->ValueType = EInputActionValueType::Boolean;
+
+	UInputAction* Sprint = NewObject<UInputAction>(this, TEXT("IA_Sprint"));
+	Sprint->ValueType = EInputActionValueType::Boolean;
 
 	// A single key gives +X. Swizzle moves it to Y (forward/back); Negate flips the sign.
 	auto MapKey = [Context](const UInputAction* Action, const FKey& Key, bool bSwizzle, bool bNegate) -> FEnhancedActionKeyMapping&
@@ -66,9 +69,11 @@ void AScrollPlayerController::BuildDefaultInputSet()
 	MouseLook.Modifiers.Add(LookScale);
 
 	MapKey(Jump, EKeys::SpaceBar, false, false);
+	MapKey(Sprint, EKeys::LeftShift, false, false);
 
 	InputSet.MappingContext = Context;
 	InputSet.Move = Move;
 	InputSet.Look = Look;
 	InputSet.Jump = Jump;
+	InputSet.Sprint = Sprint;
 }
