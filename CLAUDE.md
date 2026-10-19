@@ -14,9 +14,13 @@
 & "C:\Program Files\Epic Games\UE_5.8\Engine\Build\BatchFiles\Build.bat" ScrollPeddlerEditor Win64 Development -Project="C:\Geniesoft\CBS\ScrollPeddler\ScrollPeddler\ScrollPeddler.uproject" -WaitMutex
 ```
 
+- 에디터가 열려 있으면 에디터 타깃 대신 게임 타깃(`ScrollPeddler Win64 Development`)으로 컴파일만 검증한다. 에디터 DLL은 사용자가 에디터를 닫은 뒤 다시 빌드한다.
+
 ## 코드 규칙
 - 새 코드는 `Source/ScrollPeddler/Public/<기능>/`와 `Private/<기능>/`에 둔다. 기능 폴더: Framework, Interaction, Network, Inventory, Runes, Definitions, Effects, Events, World, Presentation, Tests.
-- 클래스 이름은 `Scroll` 접두사 (`AScrollCharacter`, `UScrollFootstepComponent` 등).
+- 모듈 루트(`Source/ScrollPeddler/`)는 Private 하위 파일의 include 경로에 없다. 공용 헤더는 `Public/`에 둔다. 로그는 `#include "ScrollLog.h"`의 `LogScroll`.
+- 클래스 이름은 `Scroll` 접두사 (`AScrollCharacter`, `UScrollFootstepComponent` 등). 예외: T8의 `AScrollGameMode` 역할은 생성된 `AScrollPeddlerGameModeBase`가 맡는다 (T9 §2.2, 이름 맞추기용 개명 안 함).
+- 입력은 Enhanced Input. 레거시 입력 배율은 껐다(`bEnableLegacyInputScales=False`). `AddControllerPitchInput(+)`가 위를 본다. 입력 에셋이 생기기 전에는 `AScrollPlayerController`가 런타임 기본 입력(WASD·마우스·Space)을 만든다.
 - 발소리·카메라 흔들림 같은 표현 기능은 `Presentation/`에 두고 룬·네트워크 로직과 섞지 않는다.
 - 콘텐츠 경로: `/Game/ScrollPeddler/{Maps,Blueprints,Data,UI,FX,Audio}`. 시험 맵은 `/Game/ScrollPeddler/Maps/L_Spike01`.
 
