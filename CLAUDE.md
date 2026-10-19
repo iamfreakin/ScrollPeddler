@@ -25,7 +25,9 @@
 - 입력은 Enhanced Input. 레거시 입력 배율은 껐다(`bEnableLegacyInputScales=False`). `AddControllerPitchInput(+)`가 위를 본다. 입력 에셋이 생기기 전에는 `AScrollPlayerController`가 런타임 기본 입력(WASD·마우스·Space)을 만든다.
 - 발소리·카메라 흔들림 같은 표현 기능은 `Presentation/`에 두고 룬·네트워크 로직과 섞지 않는다.
 - 이동 상태(스프린트 등)는 `UScrollCharacterMovementComponent`의 saved move 압축 플래그(`FLAG_Custom_0`~)로 예측·재생한다. 서버 RPC나 클라이언트에서 `MaxWalkSpeed`를 직접 바꾸는 방식은 쓰지 않는다.
-- 헤드밥은 `UScrollHeadBobComponent`(로컬 플레이어 전용) + 자체 쉐이크 패턴. 걷기·달리기 기준 속도는 이동 컴포넌트 값을 따르고, `SetIntensity(0~1)`가 접근성 흔들림 설정 연결 지점이다.
+- 헤드밥은 `UScrollHeadBobComponent`(로컬 플레이어 전용) + 자체 쉐이크 패턴. 걷기·달리기 기준 속도는 이동 컴포넌트 값을 따르고, `SetIntensity(0~1)`가 접근성 흔들림 설정 연결 지점이다. 걷는 동안의 박자는 발소리 컴포넌트의 `GetStepCycles()`를 따른다.
+- 발소리는 `UScrollFootstepComponent`. 모든 PC(전용 서버 제외)가 복제된 이동으로 각자 발걸음을 세고 3D로 재생한다(네트워크 메시지 없음). 표면은 바닥 Physical Material(`/Game/ScrollPeddler/Physics/PM_*`). 콘솔 `Scroll.Footsteps.Debug 1`로 표면·걷기/뛰기를 로그와 구로 확인한다. 시험 바닥은 `create_surface_test_area.py`.
+- 서드파티·구매 에셋은 `/Game/ThirdParty/`(git 제외)에 둔다. 지금 발소리는 Bodycam_VHS_Effect 팩 카펫 소리를 로컬 임시음으로 쓰며, 구매 사운드가 오면 `BP_SpikeCharacter` → Footsteps의 표면별 세트로 교체한다.
 - 콘텐츠 경로: `/Game/ScrollPeddler/{Maps,Blueprints,Data,UI,FX,Audio}`. 시험 맵은 `/Game/ScrollPeddler/Maps/L_Spike01`.
 - `/Game/Characters`, `/Game/Input`, `/Game/FirstPerson`은 엔진 First Person 템플릿(`Templates/TP_FirstPersonBP`, `TemplateResources/High`)에서 복사한 것. Epic 콘텐츠라 git에서 제외했고, 새 PC에서는 `Tools/Unreal/copy_template_content.ps1`로 다시 복사한다. 마네킹 메시·애니메이션은 `BP_SpikeCharacter`가 지정하고, 기본 GameMode는 `BP_SpikeGameMode`.
 - 에셋 생성은 에디터를 닫고 `Tools/Unreal/*.py`를 `UnrealEditor-Cmd.exe <uproject> -run=pythonscript -script=<파일>`로 실행한다 (`create_spike_map.py`, `create_spike_blueprints.py`).

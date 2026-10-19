@@ -6,6 +6,7 @@
 
 class UCameraComponent;
 class UScrollCharacterMovementComponent;
+class UScrollFootstepComponent;
 class UScrollHeadBobComponent;
 class USkeletalMeshComponent;
 struct FInputActionValue;
@@ -46,4 +47,7 @@ private:
 
 	UPROPERTY(VisibleAnywhere, Category = "Camera")
 	TObjectPtr<UScrollHeadBobComponent> HeadBob;
+
+	UPROPERTY(VisibleAnywhere, Category = "Audio")
+	TObjectPtr<UScrollFootstepComponent> Footsteps;
 };

@@ -9,6 +9,7 @@
 #include "Framework/ScrollPlayerController.h"
 #include "Framework/ScrollPlayerState.h"
 #include "InputActionValue.h"
+#include "Presentation/ScrollFootstepComponent.h"
 #include "Presentation/ScrollHeadBobComponent.h"
 #include "ScrollLog.h"
 
@@ -58,6 +59,7 @@ AScrollCharacter::AScrollCharacter(const FObjectInitializer& ObjectInitializer)
 	FirstPersonCamera->SetFirstPersonScale(0.6f);
 
 	HeadBob = CreateDefaultSubobject<UScrollHeadBobComponent>(TEXT("HeadBob"));
+	Footsteps = CreateDefaultSubobject<UScrollFootstepComponent>(TEXT("Footsteps"));
 }
 
 UScrollCharacterMovementComponent* AScrollCharacter::GetScrollMovement() const

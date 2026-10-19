@@ -1,11 +1,14 @@
 #include "Framework/ScrollPlayerController.h"
 
 #include "Engine/LocalPlayer.h"
+#include "EngineUtils.h"
 #include "EnhancedInputSubsystems.h"
+#include "GameFramework/GameModeBase.h"
 #include "InputAction.h"
 #include "InputMappingContext.h"
 #include "InputModifiers.h"
 #include "ScrollLog.h"
+#include "Tests/ScrollDevWalkerController.h"
 
 void AScrollPlayerController::SetupInputComponent()
 {
@@ -24,6 +27,55 @@ void AScrollPlayerController::SetupInputComponent()
 	{
 		Subsystem->AddMappingContext(InputSet.MappingContext, 0);
 	}
+}
+
+void AScrollPlayerController::ScrollSpawnWalker(float Radius)
+{
+	ServerSpawnWalker(Radius);
+}
+
+void AScrollPlayerController::ScrollClearWalkers()
+{
+	ServerClearWalkers();
+}
+
+void AScrollPlayerController::ServerSpawnWalker_Implementation(float Radius)
+{
+#if !UE_BUILD_SHIPPING
+	const APawn* MyPawn = GetPawn();
+	AGameModeBase* GameMode = GetWorld()->GetAuthGameMode();
+	if (!MyPawn || !GameMode)
+	{
+		return;
+	}
+
+	const FVector Center = MyPawn->GetActorLocation() + MyPawn->GetActorForwardVector() * 400.f;
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+	APawn* Walker = GetWorld()->SpawnActor<APawn>(GameMode->GetDefaultPawnClassForController(this), Center, FRotator::ZeroRotator, SpawnParams);
+	AScrollDevWalkerController* Brain = GetWorld()->SpawnActor<AScrollDevWalkerController>();
+	if (!Walker || !Brain)
+	{
+		return;
+	}
+	Brain->StartWalking(Center, Radius);
+	Brain->Possess(Walker);
+	UE_LOG(LogScroll, Log, TEXT("Spawned walker %s (radius %.0f cm)"), *Walker->GetName(), Radius);
+#endif
+}
+
+void AScrollPlayerController::ServerClearWalkers_Implementation()
+{
+#if !UE_BUILD_SHIPPING
+	for (TActorIterator<AScrollDevWalkerController> It(GetWorld()); It; ++It)
+	{
+		if (APawn* Walker = It->GetPawn())
+		{
+			Walker->Destroy();
+		}
+		It->Destroy();
+	}
+#endif
 }
 
 void AScrollPlayerController::BuildDefaultInputSet()

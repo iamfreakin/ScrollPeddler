@@ -45,7 +45,21 @@ class SCROLLPEDDLER_API AScrollPlayerController : public APlayerController
 public:
 	const FScrollInputSet& GetInputSet() const { return InputSet; }
 
+	/** Development console command: spawn a character that walks in a circle in front of you (server spawns it for everyone). */
+	UFUNCTION(Exec)
+	void ScrollSpawnWalker(float Radius = 300.f);
+
+	/** Development console command: remove all walkers spawned with ScrollSpawnWalker. */
+	UFUNCTION(Exec)
+	void ScrollClearWalkers();
+
 protected:
+	UFUNCTION(Server, Reliable)
+	void ServerSpawnWalker(float Radius);
+
+	UFUNCTION(Server, Reliable)
+	void ServerClearWalkers();
+
 	/** Runs only for local players. */
 	virtual void SetupInputComponent() override;
 

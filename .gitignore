@@ -49,6 +49,9 @@
 /ScrollPeddler/Content/Input/
 /ScrollPeddler/Content/FirstPerson/
 
+# Third-party / purchased assets used locally (e.g. placeholder footsteps). Licensed for use, not for redistribution.
+/ScrollPeddler/Content/ThirdParty/
+
 # Local OS files
 .DS_Store
 Thumbs.db
